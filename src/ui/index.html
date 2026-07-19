@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>serve-md</title>
+    <link rel="stylesheet" href="/ui/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="brand">serve-md</span>
+        <div class="mode-toggle" role="tablist" aria-label="Navigation mode">
+          <button id="mode-search" class="mode-btn active" role="tab"
+            aria-selected="true">Search</button>
+          <button id="mode-browse" class="mode-btn" role="tab" aria-selected="false">Browse</button>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button id="theme-toggle" class="icon-btn" title="Toggle theme"
+          aria-label="Toggle theme">🌓</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <div id="search-pane" class="pane">
+          <input id="search-input" type="text" placeholder="Type to filter…" autocomplete="off" />
+          <ul id="search-list" class="file-list" role="listbox" aria-label="Search results"></ul>
+          <p id="search-empty" class="empty hidden">No files match.</p>
+        </div>
+        <div id="browse-pane" class="pane hidden">
+          <div id="browse-tree" class="tree"></div>
+          <p id="browse-empty" class="empty hidden">No content files.</p>
+        </div>
+      </aside>
+      <section class="content">
+        <div id="content-host" class="content-host">
+          <p class="empty">Pick a file to read.</p>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/ui/app.js"></script>
+  </body>
+</html>

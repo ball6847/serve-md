@@ -15,20 +15,20 @@ Master index for the Markdown File Explorer (Glow-for-web) product. Plans are or
 
 ## Execution Order
 
-| Order | Plan file | Goal | Est. |
-| ----- | --------- | ---- | ---- |
-| **1** | `01_SCAFFOLD_ERRORS_LOGGER_PLAN.md` | Deno project, `AppError`, logger port + adapter | 2–3h |
-| **2** | `02_CONFIG_CLI_PLAN.md` | Cliffy + dotenv + zod config; `serve` flags | 2–3h |
-| **3** | `03_FILESYSTEM_PORT_PLAN.md` | FileStore port + Deno adapter (path-safe) | 3–4h |
-| **4** | `04_CONTENT_INDEX_PLAN.md` | Scan, filter, humanize, tree/list, README default | 3–4h |
-| **5** | `05_HTTP_CORE_PLAN.md` | Hono app, health/ready, error map, composition wire | 3–4h |
-| **6** | `06_FILES_API_PLAN.md` | JSON list/tree/file + raw content routes | 3–4h |
-| **7** | `07_MARKDOWN_RENDER_PLAN.md` | Markdown → HTML (GFM, highlight, tables, images, mermaid/math/TOC) | 4h |
-| **8** | `08_UI_SHELL_NAV_PLAN.md` | Static UI: theme, Search\|Browse, fuzzy + tree | 4h |
-| **9** | `09_CONTENT_VIEW_HTML_PLAN.md` | Open file view, 2MB warn, MD panel, HTML iframe | 3–4h |
-| **10** | `10_WATCH_DOCS_HARDENING_PLAN.md` | `--watch` reload, README docs, hardening | 3–4h |
+| Order  | Plan file                           | Goal                                                               | Est. |
+| ------ | ----------------------------------- | ------------------------------------------------------------------ | ---- |
+| **1**  | `01_SCAFFOLD_ERRORS_LOGGER_PLAN.md` | Deno project, `AppError`, logger port + adapter                    | 2–3h |
+| **2**  | `02_CONFIG_CLI_PLAN.md`             | Cliffy + dotenv + zod config; `serve` flags                        | 2–3h |
+| **3**  | `03_FILESYSTEM_PORT_PLAN.md`        | FileStore port + Deno adapter (path-safe)                          | 3–4h |
+| **4**  | `04_CONTENT_INDEX_PLAN.md`          | Scan, filter, humanize, tree/list, README default                  | 3–4h |
+| **5**  | `05_HTTP_CORE_PLAN.md`              | Hono app, health/ready, error map, composition wire                | 3–4h |
+| **6**  | `06_FILES_API_PLAN.md`              | JSON list/tree/file + raw content routes                           | 3–4h |
+| **7**  | `07_MARKDOWN_RENDER_PLAN.md`        | Markdown → HTML (GFM, highlight, tables, images, mermaid/math/TOC) | 4h   |
+| **8**  | `08_UI_SHELL_NAV_PLAN.md`           | Static UI: theme, Search\|Browse, fuzzy + tree                     | 4h   |
+| **9**  | `09_CONTENT_VIEW_HTML_PLAN.md`      | Open file view, 2MB warn, MD panel, HTML iframe                    | 3–4h |
+| **10** | `10_WATCH_DOCS_HARDENING_PLAN.md`   | `--watch` reload, README docs, hardening                           | 3–4h |
 
-**Rule**: Do not start plan *N* until plan *N−1* verification commands pass.
+**Rule**: Do not start plan _N_ until plan _N−1_ verification commands pass.
 
 ## Target Structure (end state)
 
