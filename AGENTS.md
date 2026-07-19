@@ -5,16 +5,19 @@ Read this **before** writing any code.
 
 > Scope of this file: **how** we build. Product requirements define **what** and **why**.
 
+This project is a **local Glow-for-web style Markdown/HTML reader** (single process, filesystem content root, small UI). Prefer simple solutions that match that size. Do not reintroduce multi-tenant API ceremony (OpenAPI/Swagger, Vite SPA, etc.) without an explicit decision and an update here.
+
 ---
 
 ## 1. Runtime & Package Management
 
 - **Runtime**: Deno (latest stable). Node.js is not a target.
 - **Package manifest**: `deno.json` at repo root (tasks, lint, fmt, tsconfig, npm imports).
-- **npm packages** are imported via `npm:` specifiers in `deno.json` `imports` map, e.g. `npm:cliffy@^1`, `npm:hono@^4`, `npm:@hono/zod-openapi@^0.18`, `npm:await-to-js@^1`, `npm:pino@^9`, `npm:zod@^3`.
+- **npm packages** are imported via `npm:` specifiers in `deno.json` `imports` map, e.g. `npm:cliffy@^1`, `npm:hono@^4`, `npm:await-to-js@^1`, `npm:zod@^3`. Optional: a concrete logger impl (e.g. `npm:pino@^9`) behind the logger port.
 - **Formatting/lint**: `deno fmt` and `deno lint` are canonical. No Prettier/ESLint.
 - **TypeScript**: `strict: true`, `noImplicitAny`, `strictNullChecks`, `exactOptionalPropertyTypes`. No `any` without an inline justification comment.
-- **No import path aliases** in Deno source. Use **relative imports** for app code. (Exception: if a Vite SPA exists, it may use Vite path aliases, since Vite—not Deno—resolves them at build time.)
+- **No import path aliases** in Deno source. Use **relative imports** for app code.
+- **UI (v1)**: no Vite SPA and no separate frontend toolchain. Prefer server-rendered shell and/or a small amount of static HTML/CSS/JS served by Hono. Introduce Vite only with an explicit product decision and an AGENTS.md update.
 
 ---
 
@@ -24,7 +27,7 @@ CLI via Cliffy, wired in a single composition root (e.g. `src/cli/main.ts`):
 
 | Command | Responsibility                                      | Compose service |
 | ------- | --------------------------------------------------- | --------------- |
-| `serve` | Hono HTTP API (API + Swagger UI) and any static UI. | `serve`         |
+| `serve` | Hono HTTP server (JSON API + static/light UI).      | `serve`         |
 
 Rules:
 
@@ -32,6 +35,7 @@ Rules:
 - The **composition root** is the _only_ place that constructs adapters and services and injects dependencies. It selects the command and passes the wired services in.
 - Cliffy subcommands receive **already-constructed services**; they must not instantiate adapters themselves.
 - The **handler layer exists only for the HTTP API**. Non-HTTP entrypoints (if added later) call services directly.
+- Product flags (examples; exact names follow the PRD): `--port`, `--network`, `--watch` / `-w`. Content root defaults to process cwd unless a flag/env override is defined.
 
 ---
 
@@ -43,11 +47,11 @@ Rules:
 ┌──────────────────────────────────────────────────────────┐
 │  Entrypoints (cli: serve, …)                              │  composition root / DI wiring
 ├──────────────────────────────────────────────────────────┤
-│  Handler        (HTTP only — Hono + @hono/zod-openapi)     │  request/response, status mapping
+│  Handler        (HTTP only — Hono + Zod validation)        │  request/response, status mapping
 ├──────────────────────────────────────────────────────────┤
 │  Service        (use-case orchestration)                  │  business rules, retries
 ├──────────────────────────────────────────────────────────┤
-│  Adapter        (ports: filesystem, HTTP clients, etc.)   │  external IO behind an interface
+│  Adapter        (ports: filesystem, logger, etc.)         │  external IO behind an interface
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -91,16 +95,20 @@ Layering rules (enforced by **review only** — see §10):
 ### Sentinel errors
 
 - Every error is a sentinel `class` extending a base `AppError`, carrying:
-  - `code: string` — stable, SCREAMING_SNAKE_CASE machine code (e.g. `NOT_FOUND`, `CONFIG_INVALID`, `PATH_TRAVERSAL`, `READ_FAILED`).
+  - `code: string` — stable, SCREAMING_SNAKE_CASE machine code (e.g. `NOT_FOUND`, `CONFIG_INVALID`, `PATH_TRAVERSAL`, `READ_FAILED`, `NOT_READY`).
   - `message: string` — human-readable.
   - optional `cause`, optional `context: Record<string, unknown>` (never secrets).
 - Errors are **values**, not thrown across layer boundaries. Services return `[err, data]` tuples from `to()`; on error they build and return the appropriate sentinel.
-- Handlers map `AppError.code` → HTTP status via a single registry:
+- Handlers map `AppError.code` → HTTP status via a single registry. Keep the registry **product-sized**; add codes when needed:
   ```
-  NOT_FOUND → 404, CONFLICT → 409, RATE_LIMITED → 429,
-  TEMPORARY → 503, PERMANENT → 422, CONFIG_INVALID → 500, default → 500
+  NOT_FOUND      → 404
+  PATH_TRAVERSAL → 400
+  READ_FAILED    → 500
+  CONFIG_INVALID → 500
+  NOT_READY      → 503
+  default        → 500
   ```
-- Logging an error uses pino's `logger.error({ errCode, context }, message)` — never `logger.error(err)` with a raw stack in a user-facing path.
+- Logging an error uses the injected logger: `logger.error({ errCode, context }, message)` — never log raw stacks on a user-facing path.
 
 ---
 
@@ -113,30 +121,27 @@ Layering rules (enforced by **review only** — see §10):
 
 ---
 
-## 6. API — Hono + Zod + Swagger from Code
+## 6. API — Hono + Zod (no OpenAPI required)
 
-- **Framework**: Hono. Use **`@hono/zod-openapi`** so routes **and** zod schemas are the single source of truth for the OpenAPI document.
-- **Swagger**: `GET /openapi.json` serves the OpenAPI document; `GET /docs` serves Swagger UI. Both auto-generated from route definitions + zod schemas. No hand-written OpenAPI.
-- **Validation**: every request body / query / param validated with zod; every response typed with zod. Schemas live in `api/schemas/` (or equivalent).
-- **Response envelope** (consistent for all 2xx):
-  ```json
-  { "data": <T> }
-  ```
-  Errors (4xx/5xx):
-  ```json
-  { "error": { "code": "NOT_FOUND", "message": "..." } }
-  ```
-- **URL paths**: all lowercase, **kebab-case**, leading slash, no trailing slash. (e.g. `/api/documents/:slug`, `/health`.)
-- **Request/response field names**: **camelCase**.
+- **Framework**: Hono. Validate request query / params / body with **Zod**. No `@hono/zod-openapi`, no `/openapi.json`, no Swagger UI in v1 unless explicitly reintroduced later.
+- **Validation**: every request input that comes from the client is validated with zod; JSON response shapes used by the UI are typed with zod (schemas live in `api/schemas/` or equivalent).
+- **Response kinds** (all first-class; pick the right one per route):
+  - **JSON API** (2xx): `{ "data": <T> }`
+  - **JSON errors** (4xx/5xx): `{ "error": { "code": "NOT_FOUND", "message": "..." } }`
+  - **HTML**: document or fragment for the reader UI (no JSON envelope).
+  - **Raw content / assets**: bytes for iframe HTML, images, and relative assets (correct `Content-Type`; no JSON envelope).
+- **URL paths**: all lowercase, **kebab-case**, leading slash, no trailing slash (e.g. `/api/files`, `/health`).
+- **Request/response field names** (JSON): **camelCase**.
 - **Health endpoints** (both required when `serve` is present):
   - `GET /health` → **liveness**: 200 `{ "status": "ok" }` if the process is alive. No dependency checks.
   - `GET /ready` → **readiness**: 200 if required deps (e.g. content root readable) pass; 503 otherwise, with a `{ "checks": { ... } }` body.
 
 ---
 
-## 7. Logging — Pino
+## 7. Logging — Logger Port
 
-- **Structured logs only** via pino. No `console.log` in app code (allowed only in CLI scratch).
+- **Structured logs only** via an injected **logger port** (`Logger` or equivalent interface in `ports/`). No `console.log` in app code (allowed only in CLI scratch / composition bootstrap before the logger exists).
+- **Implementation is swappable**: a simple JSON/console adapter is fine for v1; pino (or similar) may be used behind the same port. App code must not import a concrete logger package directly.
 - **Log fields are camelCase**: `requestId`, `path`, `errCode`.
 - **Never log secrets**: tokens, API keys, authorization headers. If a value might be secret, do not log it.
 - Log levels: `debug` (default off in prod), `info` (lifecycle), `warn` (retryable), `error` (terminal failures with `errCode`).
@@ -144,22 +149,29 @@ Layering rules (enforced by **review only** — see §10):
 
 ---
 
-## 8. Config — dotenv (Deno way)
+## 8. Config — Cliffy + dotenv
 
-- Env loaded via Deno-native dotenv (`std/dotenv` or `npm:dotenv` per the Deno-recommended path). Single `.env` file at repo root for local; container/orchestrator injects env for prod.
-- A zod **env schema** validates and types all required variables at startup. Invalid config → `CONFIG_INVALID` sentinel → process refuses to start.
-- Typical env (adjust as product needs solidify):
-  - `PORT`, `LOG_LEVEL`
-  - content / workspace roots as needed (e.g. `CONTENT_ROOT`)
-- Never commit real secrets. Document required vars in README and the zod schema.
+- **Cliffy** owns CLI flags and command wiring (`serve`, `--port`, `--network`, `--watch` / `-w`, etc.).
+- **dotenv** loads env from a single `.env` at repo root for local defaults (Deno-native or `npm:dotenv` per Deno-recommended path). Container/orchestrator may inject env in non-local runs.
+- A zod **config schema** validates the **merged** result of env + flags at startup (composition root). Invalid config → `CONFIG_INVALID` → process refuses to start.
+- **Merge policy**: CLI flags override env when both set (explicit operator intent wins).
+- Typical config surface (align names with product PRD as implemented):
+  - `PORT` / `--port` (default `8787`)
+  - `LOG_LEVEL`
+  - content root (default: process cwd)
+  - bind mode: localhost vs all interfaces (`--network`)
+  - watch enabled (`--watch` / `-w`)
+  - dot-directory whitelist env (include specific `.dir` basenames; all other dot paths excluded by default)
+- Never commit real secrets. Document flags and env vars in README and the zod schema.
 
 ---
 
 ## 9. Testing
 
 - **Framework**: `Deno.test`. Coverage via `deno coverage`.
-- **Service layer: 100% line coverage required.** CI fails below 100% for `src/service/**` (or equivalent path).
-- Adapter: integration tests with temp dirs / stubbed HTTP / stubbed subprocess. No live network in CI unless explicitly allowed.
+- **Service layer**: aim for strong coverage; prioritize path safety, scan/index rules, and render orchestration. **100% line coverage for `src/service/**` is a goal**, not a hard CI fail gate in early v1—tighten to a hard gate once core services stabilize.
+- **Must-have tests** (do not skip): path traversal rejection, content-only filtering (md/html/htm), dot-path exclusion + whitelist, default README resolution, large-file warning metadata, not-found/unreadable handling.
+- Adapter: integration tests with temp dirs / stubbed subprocess. No live network in CI unless explicitly allowed.
 - Handler: tests against the Hono app with fake services injected.
 - Fakes over mocks: inject fake adapters implementing the port interface. Avoid runtime mocking libraries.
 - Naming: `*_test.ts` colocated with the module (Deno convention).
@@ -174,7 +186,8 @@ Layering rules (enforced by **review only** — see §10):
   - a Handler importing an Adapter directly,
   - an Adapter importing a Service,
   - any use of a concrete adapter where a port interface should be used,
-  - introduction of a database/ORM without an explicit decision.
+  - introduction of a database/ORM without an explicit decision,
+  - introduction of OpenAPI/Swagger or a Vite SPA without an explicit decision and AGENTS.md update.
 - If import hygiene becomes a recurring problem, a custom `deno lint` plugin may be added later — **not in v1**.
 
 ---
@@ -183,30 +196,30 @@ Layering rules (enforced by **review only** — see §10):
 
 | Concern              | Convention                              | Example                            |
 | -------------------- | --------------------------------------- | ---------------------------------- |
-| URL paths            | lowercase kebab-case, no trailing slash | `/api/documents/:slug`             |
+| URL paths            | lowercase kebab-case, no trailing slash | `/api/files`, `/health`            |
 | API req/resp fields  | camelCase                               | `contentRoot`, `lastModifiedAt`    |
 | Error codes          | SCREAMING_SNAKE_CASE                    | `PATH_TRAVERSAL`, `CONFIG_INVALID` |
 | Log fields           | camelCase                               | `requestId`, `errCode`             |
-| Env vars             | UPPER_SNAKE_CASE                        | `CONTENT_ROOT`, `LOG_LEVEL`        |
+| Env vars             | UPPER_SNAKE_CASE                        | `LOG_LEVEL`, `PORT`                |
 | TS files             | camelCase                               | `markdownService.ts`               |
 | Deno source imports  | relative (no aliases)                   | `../service/markdownService.ts`    |
-| SPA imports (if any) | Vite aliases OK                         | `@/components/...`                 |
 | Classes              | PascalCase                              | `MarkdownService`                  |
-| Interfaces (ports)   | PascalCase, no `I` prefix               | `MarkdownStore`                    |
+| Interfaces (ports)   | PascalCase, no `I` prefix               | `FileStore`, `Logger`              |
 | Sentinel errors      | PascalCase, `Error` suffix              | `MarkdownReadFailedError`          |
 
 ---
 
 ## 12. Stack Snapshot (intentional)
 
-| Layer    | Choice                                     |
-| -------- | ------------------------------------------ |
-| Runtime  | Deno                                       |
-| CLI      | Cliffy                                     |
-| HTTP     | Hono + `@hono/zod-openapi` + Zod           |
-| Errors   | Sentinel `AppError` + `await-to-js` `to()` |
-| Logging  | pino                                       |
-| Config   | dotenv + zod env schema                    |
-| Tests    | `Deno.test`                                |
-| Database | **None**                                   |
-| ORM      | **None**                                   |
+| Layer    | Choice                                              |
+| -------- | --------------------------------------------------- |
+| Runtime  | Deno                                                |
+| CLI      | Cliffy                                              |
+| HTTP     | Hono + Zod (no OpenAPI/Swagger in v1)               |
+| UI       | Static / light server UI (no Vite SPA in v1)        |
+| Errors   | Sentinel `AppError` + `await-to-js` `to()`          |
+| Logging  | Logger **port** (simple or pino adapter)            |
+| Config   | Cliffy flags + dotenv + zod merged config schema    |
+| Tests    | `Deno.test` (strong service coverage; 100% goal)    |
+| Database | **None**                                            |
+| ORM      | **None**                                            |
