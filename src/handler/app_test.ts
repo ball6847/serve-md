@@ -46,6 +46,7 @@ async function build(opts?: { throwOnReady?: Error }): Promise<Built> {
     events,
     logger,
     meta: () => ({ watch: false }),
+    brand: "test",
   });
   return { app, store, index };
 }

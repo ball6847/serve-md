@@ -33,11 +33,13 @@ export async function main(argv: string[]): Promise<number> {
     .option("--root <root:string>", "Content root directory (default: cwd)", {
       default: undefined,
     })
+    .option("--open", "Open browser automatically on startup", { default: false })
     .action(async (options) => {
       const flags: RawFlags = {
         port: options.port as number | undefined,
         network: Boolean(options.network),
         watch: Boolean(options.watch),
+        open: Boolean(options.open),
         root: options.root as string | undefined,
       };
       const result = parseConfig({
@@ -100,6 +102,7 @@ export async function main(argv: string[]): Promise<number> {
         events,
         logger,
         meta: () => ({ watch: Boolean(watcher) }),
+        brand: config.contentRoot.split("/").pop() || "serve-md",
       });
 
       // Initial index refresh (best-effort; ready will report failure)
@@ -128,6 +131,21 @@ export async function main(argv: string[]): Promise<number> {
           port: config.port,
           onListen: ({ hostname, port }) => {
             logger.info({ hostname, port }, "http server listening");
+            // Open browser if --open flag was set
+            if (config.open) {
+              const url = `http://${hostname === "0.0.0.0" ? "localhost" : hostname}:${port}`;
+              const cmd = Deno.build.os === "darwin"
+                ? "open"
+                : Deno.build.os === "windows"
+                ? "cmd"
+                : "xdg-open";
+              const args = Deno.build.os === "windows" ? ["/c", "start", url] : [url];
+              try {
+                new Deno.Command(cmd, { args }).spawn();
+              } catch (e) {
+                logger.warn({ err: String(e) }, "failed to open browser");
+              }
+            }
           },
         },
         app.fetch,

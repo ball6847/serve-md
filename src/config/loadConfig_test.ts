@@ -9,6 +9,7 @@ function input(over: Partial<ConfigInput> = {}): ConfigInput {
       port: undefined,
       network: false,
       watch: false,
+      open: false,
       root: undefined,
     },
     env: {},
@@ -42,7 +43,7 @@ Deno.test("parseConfig: env PORT overrides default", () => {
 Deno.test("parseConfig: CLI flag --port overrides env PORT", () => {
   const cfg = ok(parseConfig(
     input({
-      flags: { port: 9999, network: false, watch: false, root: undefined },
+      flags: { port: 9999, network: false, watch: false, open: false, root: undefined },
       env: { PORT: "3000" },
     }),
   ));
@@ -51,28 +52,34 @@ Deno.test("parseConfig: CLI flag --port overrides env PORT", () => {
 
 Deno.test("parseConfig: --network sets host to 0.0.0.0", () => {
   const cfg = ok(parseConfig(
-    input({ flags: { port: undefined, network: true, watch: false, root: undefined } }),
+    input({
+      flags: { port: undefined, network: true, watch: false, open: false, root: undefined },
+    }),
   ));
   assertEquals(cfg.host, "0.0.0.0");
 });
 
 Deno.test("parseConfig: -w / --watch toggles watch", () => {
   const cfg = ok(parseConfig(
-    input({ flags: { port: undefined, network: false, watch: true, root: undefined } }),
+    input({
+      flags: { port: undefined, network: false, watch: true, open: false, root: undefined },
+    }),
   ));
   assertEquals(cfg.watch, true);
 });
 
 Deno.test("parseConfig: --root overrides cwd", () => {
   const cfg = ok(parseConfig(
-    input({ flags: { port: undefined, network: false, watch: false, root: "/var/data" } }),
+    input({
+      flags: { port: undefined, network: false, watch: false, open: false, root: "/var/data" },
+    }),
   ));
   assertEquals(cfg.contentRoot, "/var/data");
 });
 
 Deno.test("parseConfig: invalid port 0 returns ConfigInvalidError", () => {
   const cfg = parseConfig(
-    input({ flags: { port: 0, network: false, watch: false, root: undefined } }),
+    input({ flags: { port: 0, network: false, watch: false, open: false, root: undefined } }),
   );
   assertInstanceOf(cfg, ConfigInvalidError);
   const err = cfg as ConfigInvalidError;
@@ -81,7 +88,7 @@ Deno.test("parseConfig: invalid port 0 returns ConfigInvalidError", () => {
 
 Deno.test("parseConfig: invalid port 99999 returns ConfigInvalidError", () => {
   const cfg = parseConfig(
-    input({ flags: { port: 99999, network: false, watch: false, root: undefined } }),
+    input({ flags: { port: 99999, network: false, watch: false, open: false, root: undefined } }),
   );
   assertInstanceOf(cfg, ConfigInvalidError);
 });

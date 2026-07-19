@@ -9,6 +9,7 @@ export const ConfigSchema = z.object({
   host: z.string(),
   contentRoot: z.string().min(1),
   watch: z.boolean(),
+  open: z.boolean(),
   logLevel: z.enum(["debug", "info", "warn", "error"]),
   dotWhitelist: z.array(z.string()),
 });

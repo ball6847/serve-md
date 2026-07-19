@@ -10,6 +10,7 @@ export interface RawFlags {
   port?: number | undefined;
   network: boolean;
   watch: boolean;
+  open: boolean;
   root?: string | undefined;
 }
 
@@ -43,6 +44,7 @@ export function parseConfig(input: ConfigInput): AppConfig | ConfigInvalidError 
     host,
     contentRoot,
     watch,
+    open: input.flags.open,
     logLevel,
     dotWhitelist,
   };

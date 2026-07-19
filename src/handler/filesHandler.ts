@@ -94,6 +94,7 @@ export class FilesHandler {
     let html: string | null = null;
     let toc: ReturnType<MarkdownRenderService["render"]>["toc"] | null = null;
     let warnings: string[] | null = null;
+    let frontmatter: Record<string, unknown> | null = null;
 
     if (isMarkdown) {
       if (largeFile(stat.size)) {
@@ -109,6 +110,7 @@ export class FilesHandler {
         html = result.html;
         toc = result.toc;
         warnings = result.warnings;
+        frontmatter = result.frontmatter ?? null;
       }
     } else if (isHtml) {
       // Don't inline HTML body; UI will load via iframe /content/<path>
@@ -128,6 +130,7 @@ export class FilesHandler {
         html,
         toc,
         warnings,
+        frontmatter,
       },
     });
   }

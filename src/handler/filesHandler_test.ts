@@ -31,6 +31,7 @@ function buildApp(opts?: { index?: ContentIndexService; store?: FakeFileStore })
     events,
     logger,
     meta: () => ({ watch: false }),
+    brand: "test",
   });
   return { app, store, index };
 }

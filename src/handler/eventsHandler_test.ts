@@ -28,6 +28,7 @@ Deno.test("GET /api/events returns 404 when watch is disabled", async () => {
     events,
     logger,
     meta: () => ({ watch: false }),
+    brand: "test",
   });
   const res = await app.request("http://local/api/events");
   assertEquals(res.status, 404);
@@ -49,6 +50,7 @@ Deno.test("GET /api/events opens SSE stream and broadcasts on watcher reload", a
     events,
     logger,
     meta: () => ({ watch: true }),
+    brand: "test",
   });
 
   // Open the SSE stream
@@ -99,6 +101,7 @@ Deno.test("GET /api/meta returns watch status", async () => {
     events,
     logger,
     meta: () => ({ watch: true }),
+    brand: "test",
   });
   const res = await app.request("http://local/api/meta");
   assertEquals(res.status, 200);

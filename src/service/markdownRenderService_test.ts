@@ -40,6 +40,15 @@ Deno.test("Mermaid fence preserved for client", () => {
   assertStringIncludes(html, "graph TD");
 });
 
+Deno.test("Mermaid code is not HTML-escaped", () => {
+  const md = "```mermaid\ngraph TD;\n    A-->B;\n```";
+  const { html } = r.render(md, { relativeDir: "" });
+  // Mermaid needs raw text, so < and > should NOT be escaped
+  assertStringIncludes(html, "A-->B");
+  assertEquals(html.includes("&lt;"), false);
+  assertEquals(html.includes("&gt;"), false);
+});
+
 Deno.test("Heading anchors + TOC populated", () => {
   const md = `# Hello World
 
@@ -102,4 +111,73 @@ Deno.test("Heading with duplicate text gets unique id", () => {
 Deno.test("TOC is empty for content without headings", () => {
   const { toc } = r.render("Just a paragraph.", { relativeDir: "" });
   assertEquals(toc.length, 0);
+});
+
+// Frontmatter parsing tests
+Deno.test("Frontmatter: basic YAML parsing", () => {
+  const md = `---
+title: My Document
+author: John Doe
+---
+# Hello`;
+  const { frontmatter, html } = r.render(md, { relativeDir: "" });
+  assertEquals(frontmatter?.title, "My Document");
+  assertEquals(frontmatter?.author, "John Doe");
+  assertStringIncludes(html, "<h1");
+});
+
+Deno.test("Frontmatter: array parsing", () => {
+  const md = `---
+tags: [a, b, c]
+---
+# Hello`;
+  const { frontmatter } = r.render(md, { relativeDir: "" });
+  assertEquals(frontmatter?.tags, ["a", "b", "c"]);
+});
+
+Deno.test("Frontmatter: boolean parsing", () => {
+  const md = `---
+published: true
+draft: false
+---
+# Hello`;
+  const { frontmatter } = r.render(md, { relativeDir: "" });
+  assertEquals(frontmatter?.published, true);
+  assertEquals(frontmatter?.draft, false);
+});
+
+Deno.test("Frontmatter: number parsing", () => {
+  const md = `---
+version: 1
+count: 42
+---
+# Hello`;
+  const { frontmatter } = r.render(md, { relativeDir: "" });
+  assertEquals(frontmatter?.version, 1);
+  assertEquals(frontmatter?.count, 42);
+});
+
+Deno.test("Frontmatter: quoted values", () => {
+  const md = `---
+title: "My \"Quoted\" Title"
+description: 'Single quoted'
+---
+# Hello`;
+  const { frontmatter } = r.render(md, { relativeDir: "" });
+  assertEquals(frontmatter?.title, 'My "Quoted" Title');
+  assertEquals(frontmatter?.description, "Single quoted");
+});
+
+Deno.test("Frontmatter: no frontmatter returns null", () => {
+  const md = `# Hello`;
+  const { frontmatter } = r.render(md, { relativeDir: "" });
+  assertEquals(frontmatter, null);
+});
+
+Deno.test("Frontmatter: empty frontmatter returns null", () => {
+  const md = `---
+---
+# Hello`;
+  const { frontmatter } = r.render(md, { relativeDir: "" });
+  assertEquals(frontmatter, null);
 });

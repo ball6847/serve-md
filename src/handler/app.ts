@@ -15,6 +15,8 @@ export interface AppDeps {
   logger: Logger;
   /** Server-side meta exposed to UI (e.g. watch status). */
   meta: () => { watch: boolean };
+  /** Brand name shown in the topbar (e.g. project directory name). */
+  brand: string;
 }
 
 /**
@@ -30,8 +32,10 @@ export function createApp(deps: AppDeps): Hono {
   app.get("/api/meta", () => Response.json({ data: deps.meta() }));
 
   // Serve index.html for the root
-  app.get("/", async () => {
-    const html = await Deno.readTextFile(new URL("../ui/index.html", import.meta.url));
+  app.get("/", () => {
+    const brand = escapeHtml(deps.brand);
+    let html = Deno.readTextFileSync(new URL("../ui/index.html", import.meta.url));
+    html = html.replace(/\{\{ brand \}\}/g, brand);
     return new Response(html, {
       headers: { "content-type": "text/html; charset=utf-8" },
     });
@@ -112,4 +116,13 @@ export function createApp(deps: AppDeps): Hono {
   });
 
   return app;
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }

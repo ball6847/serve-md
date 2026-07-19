@@ -40,6 +40,7 @@ deno task serve --help
 | `--network` | Bind on all interfaces (`0.0.0.0`) — required for Tailscale | `127.0.0.1` |
 | `-w`, `--watch` | Watch content root for changes and notify the UI via SSE | off |
 | `--root <path>` | Content root directory | cwd |
+| `--open` | Open browser automatically on startup | off |
 
 ## Environment variables
 
@@ -163,7 +164,7 @@ src/
     ├── index.html
     ├── styles.css
     ├── app.js
-    └── fuzzy.ts                     # pure fuzzy match
+    └── app.js                     # vanilla JS app
 ```
 
 ## Out of scope (v1)

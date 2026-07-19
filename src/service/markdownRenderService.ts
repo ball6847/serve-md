@@ -18,6 +18,8 @@ export interface RenderResult {
   toc: TocEntry[];
   /** Non-fatal warnings collected during render. */
   warnings: string[];
+  /** Parsed YAML frontmatter metadata (if present). */
+  frontmatter: Record<string, unknown> | null;
 }
 
 /**
@@ -49,8 +51,10 @@ export class MarkdownRenderService {
           const lang = (token.lang || "").trim().split(/\s+/)[0] ?? "";
           let highlighted: string;
           if (lang === "mermaid") {
-            // Preserve for client-side mermaid
-            return `<pre class="mermaid">${escapeHtml(code)}</pre>\n`;
+            // Preserve for client-side mermaid - do NOT escape, mermaid needs raw text
+            // Also unescape any HTML entities that might be in the source
+            const unescaped = unescapeHtml(code);
+            return `<pre class="mermaid">${unescaped}</pre>\n`;
           }
           try {
             if (lang && hljs.getLanguage(lang)) {
@@ -73,6 +77,9 @@ export class MarkdownRenderService {
     const warnings: string[] = [];
     const toc: TocEntry[] = [];
     const seenIds = new Set<string>();
+
+    // Parse frontmatter
+    const { frontmatter, body } = parseFrontmatter(markdown);
 
     // heading IDs
     const m2 = this.#marked.use({
@@ -101,9 +108,18 @@ export class MarkdownRenderService {
           const altAttr = ` alt="${escapeAttr(token.text)}"`;
           return `<img src="${escapeAttr(src)}"${altAttr}${titleAttr} loading="lazy" />`;
         },
-        link() {
-          // External/anchor: leave as is. Internal .md? — leave to the reader.
-          return false; // false = use default renderer
+        link(this: unknown, token: Tokens.Link) {
+          const href = token.href;
+          // Rewrite relative .md/.markdown links to deep links
+          if (isMarkdownLink(href) && !href.startsWith("http") && !href.startsWith("/")) {
+            const resolved = resolveMarkdownLink(href, options.relativeDir);
+            const titleAttr = token.title ? ` title="${escapeAttr(token.title)}"` : "";
+            const inner = (this as unknown as {
+              parser: { parseInline: (t: Tokens.Generic[]) => string };
+            }).parser.parseInline(token.tokens as unknown as Tokens.Generic[]);
+            return `<a href="/${escapeAttr(resolved)}"${titleAttr}>${inner}</a>`;
+          }
+          return false; // default for external links
         },
       },
     });
@@ -111,13 +127,13 @@ export class MarkdownRenderService {
 
     let parsedHtml = "";
     try {
-      const out = m2.parse(markdown, { async: false });
+      const out = m2.parse(body, { async: false });
       parsedHtml = typeof out === "string" ? out : "";
     } catch (e) {
       warnings.push(`render error: ${String(e)}`);
-      return { html: `<pre>${escapeHtml(markdown)}</pre>`, toc, warnings };
+      return { html: `<pre>${escapeHtml(body)}</pre>`, toc, warnings, frontmatter };
     }
-    return { html: parsedHtml, toc, warnings };
+    return { html: parsedHtml, toc, warnings, frontmatter };
   }
 }
 
@@ -139,6 +155,16 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function unescapeHtml(s: string): string {
+  return s
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ");
 }
 
 function escapeAttr(s: string): string {
@@ -174,4 +200,86 @@ function rewriteImageSrc(
     return "#";
   }
   return `/content/${resolved}`;
+}
+
+/** Check if a link points to a markdown file (relative, no protocol). */
+function isMarkdownLink(href: string): boolean {
+  const withoutHash = href.split("#")[0];
+  return withoutHash.endsWith(".md") || withoutHash.endsWith(".markdown");
+}
+
+/** Resolve a relative markdown link against the current file's directory. */
+function resolveMarkdownLink(href: string, relativeDir: string): string {
+  // Split off anchor
+  const [pathPart, anchorPart] = href.split("#", 2);
+  const anchor = anchorPart ? `#${anchorPart}` : "";
+
+  const baseDir = relativeDir === "" || relativeDir === "." ? "" : relativeDir;
+  const joined = baseDir.length === 0 ? pathPart : `${baseDir}/${pathPart}`;
+  const resolved = posixNormalize(joined).replace(/^\.\//, "");
+
+  // Build deep link URL
+  const fileParam = encodeURIComponent(resolved);
+  return `?file=${fileParam}${anchor}`;
+}
+
+/**
+ * Parse YAML frontmatter from markdown.
+ * Returns the parsed metadata and the body with frontmatter removed.
+ * Uses a simple key: value parser — sufficient for common metadata fields.
+ */
+export function parseFrontmatter(markdown: string): {
+  frontmatter: Record<string, unknown> | null;
+  body: string;
+} {
+  const match = markdown.match(/^---\s*\n([\s\S]*?)\n---\s*\n?/);
+  if (!match) {
+    return { frontmatter: null, body: markdown };
+  }
+
+  const yamlStr = match[1];
+  const body = markdown.slice(match[0].length);
+  const data: Record<string, unknown> = {};
+
+  for (const line of yamlStr.split("\n")) {
+    const colonIdx = line.indexOf(":");
+    if (colonIdx === -1) continue;
+    const key = line.slice(0, colonIdx).trim();
+    let value = line.slice(colonIdx + 1).trim();
+    // Remove quotes
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    // Parse arrays: [a, b, c]
+    if (value.startsWith("[") && value.endsWith("]")) {
+      data[key] = value
+        .slice(1, -1)
+        .split(",")
+        .map((s) => s.trim().replace(/^["']|["']$/g, ""));
+      continue;
+    }
+    // Parse booleans
+    if (value === "true") {
+      data[key] = true;
+      continue;
+    }
+    if (value === "false") {
+      data[key] = false;
+      continue;
+    }
+    // Parse numbers
+    if (/^\d+(\.\d+)?$/.test(value)) {
+      data[key] = Number(value);
+      continue;
+    }
+    if (value) data[key] = value;
+  }
+
+  if (Object.keys(data).length === 0) {
+    return { frontmatter: null, body: markdown };
+  }
+  return { frontmatter: data, body };
 }
