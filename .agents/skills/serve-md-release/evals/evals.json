@@ -1,0 +1,20 @@
+{
+  "skill_name": "serve-md-release",
+  "evals": [
+    {
+      "id": 0,
+      "prompt": "Release a new version of serve-md to JSR",
+      "expected_output": "The agent runs ./scripts/release.sh --yes from the repo root, reports the quality gate results, the assessed semver bump, and the new tag name."
+    },
+    {
+      "id": 1,
+      "prompt": "I want to bump the version and publish serve-md to JSR. We've added a few new features since the last tag.",
+      "expected_output": "The agent runs ./scripts/release.sh --yes, the script assesses a minor bump from the feat: commits, and pushes the new tag."
+    },
+    {
+      "id": 2,
+      "prompt": "Check if serve-md is ready to release, then cut a new tag",
+      "expected_output": "The agent runs the release script which runs both deno task check and deno task release:check before creating and pushing the tag."
+    }
+  ]
+}
