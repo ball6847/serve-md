@@ -1,11 +1,11 @@
 import { assertEquals } from "jsr:@std/assert@^1";
 import {
-  slugify,
-  escapeHtml,
-  unescapeHtml,
   escapeAttr,
-  isMarkdownLink,
+  escapeHtml,
   extOf,
+  isMarkdownLink,
+  slugify,
+  unescapeHtml,
 } from "./markdown_utils.ts";
 
 // TC-07: slugify produces stable IDs

@@ -63,7 +63,9 @@ export class ConsoleLogger implements Logger {
     bindings: Record<string, unknown>,
     message: string,
   ): void {
-    if (LEVEL_ORDER[level] < LEVEL_ORDER[this.#level]) return;
+    if (LEVEL_ORDER[level] < LEVEL_ORDER[this.#level]) {
+      return;
+    }
     const record: Record<string, unknown> = {
       time: new Date().toISOString(),
       level,

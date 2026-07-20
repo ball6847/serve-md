@@ -73,9 +73,13 @@ Deno.test("GET /api/events opens SSE stream and broadcasts on watcher reload", a
   const readPromise = (async () => {
     while (true) {
       const { value, done } = await reader.read();
-      if (done) break;
+      if (done) {
+        break;
+      }
       received += decoder.decode(value, { stream: true });
-      if (received.includes("event: reload")) break;
+      if (received.includes("event: reload")) {
+        break;
+      }
     }
   })();
   const timeout = new Promise<void>((r) => setTimeout(r, 1000));

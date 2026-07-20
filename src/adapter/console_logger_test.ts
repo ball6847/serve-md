@@ -65,7 +65,9 @@ Deno.test("ConsoleLogger: never throws even with weird bindings", () => {
 Deno.test("ConsoleLogger: child logger inherits parent level and merges bindings", () => {
   const { logger: parent, lines } = captureLog("info");
   const child = parent.child?.({ component: "files" });
-  if (!child) throw new Error("child missing");
+  if (!child) {
+    throw new Error("child missing");
+  }
   child.info({ requestId: "r1" }, "from child");
   const parsed = JSON.parse(lines[0]);
   assertEquals(parsed.component, "files");
@@ -75,7 +77,9 @@ Deno.test("ConsoleLogger: child logger inherits parent level and merges bindings
 Deno.test("ConsoleLogger: child can override level", () => {
   const { logger: parent } = captureLog("warn");
   const child = parent.child?.({}, { level: "debug" });
-  if (!child) throw new Error("child missing");
+  if (!child) {
+    throw new Error("child missing");
+  }
   let emitted = false;
   const writer = (_s: string) => {
     emitted = true;

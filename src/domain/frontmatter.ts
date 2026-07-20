@@ -32,7 +32,9 @@ export class Frontmatter {
 
     for (const line of yamlStr.split("\n")) {
       const colonIdx = line.indexOf(":");
-      if (colonIdx === -1) continue;
+      if (colonIdx === -1) {
+        continue;
+      }
       const key = line.slice(0, colonIdx).trim();
       let value = line.slice(colonIdx + 1).trim();
       // Remove quotes
@@ -64,7 +66,9 @@ export class Frontmatter {
         data[key] = Number(value);
         continue;
       }
-      if (value) data[key] = value;
+      if (value) {
+        data[key] = value;
+      }
     }
 
     if (Object.keys(data).length === 0) {

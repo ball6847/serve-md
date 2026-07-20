@@ -32,8 +32,12 @@ export interface AppDeps {
 
 /** Extract the wildcard portion of a splat route path. */
 function extractSplat(path: string, prefix: string): string {
-  if (path === prefix) return "";
-  if (path.startsWith(prefix + "/")) return path.slice(prefix.length + 1);
+  if (path === prefix) {
+    return "";
+  }
+  if (path.startsWith(prefix + "/")) {
+    return path.slice(prefix.length + 1);
+  }
   return path.slice(prefix.length);
 }
 
@@ -86,7 +90,9 @@ export function createApp(deps: AppDeps): Hono {
     }
     const [err] = await to(deps.files.rawContent(rest));
     if (err) {
-      if (isAppError(err)) throw err;
+      if (isAppError(err)) {
+        throw err;
+      }
       throw err;
     }
     return await deps.files.rawContent(rest);

@@ -64,13 +64,17 @@ export class FakeFileStore implements FileStore {
 
   readText(relativePath: string): Promise<string> {
     const e = this.#files.get(relativePath);
-    if (!e) return Promise.reject(new NotFoundError(`not found: ${relativePath}`));
+    if (!e) {
+      return Promise.reject(new NotFoundError(`not found: ${relativePath}`));
+    }
     return Promise.resolve(new TextDecoder().decode(e.content));
   }
 
   readBytes(relativePath: string): Promise<Uint8Array> {
     const e = this.#files.get(relativePath);
-    if (!e) return Promise.reject(new NotFoundError(`not found: ${relativePath}`));
+    if (!e) {
+      return Promise.reject(new NotFoundError(`not found: ${relativePath}`));
+    }
     return Promise.resolve(e.content);
   }
 
@@ -79,10 +83,14 @@ export class FakeFileStore implements FileStore {
     const out: DirEntry[] = [];
     const seen = new Set<string>();
     for (const p of this.#files.keys()) {
-      if (!p.startsWith(prefix)) continue;
+      if (!p.startsWith(prefix)) {
+        continue;
+      }
       const rest = p.slice(prefix.length);
       const first = rest.split("/")[0];
-      if (seen.has(first)) continue;
+      if (seen.has(first)) {
+        continue;
+      }
       seen.add(first);
       out.push({
         name: first,
@@ -92,10 +100,16 @@ export class FakeFileStore implements FileStore {
       });
     }
     for (const d of this.#dirs) {
-      if (!d.startsWith(prefix) || d === relativePath) continue;
+      if (!d.startsWith(prefix) || d === relativePath) {
+        continue;
+      }
       const rest = d.slice(prefix.length);
-      if (rest.includes("/")) continue; // sub-dir of a sub-dir; not a direct child
-      if (seen.has(rest)) continue;
+      if (rest.includes("/")) {
+        continue; // sub-dir of a sub-dir; not a direct child
+      }
+      if (seen.has(rest)) {
+        continue;
+      }
       seen.add(rest);
       out.push({ name: rest, isFile: false, isDirectory: true, relativePath: d });
     }
@@ -106,7 +120,9 @@ export class FakeFileStore implements FileStore {
     const prefix = relativePath && relativePath.length > 0 ? relativePath + "/" : "";
     const out: DirEntry[] = [];
     for (const p of this.#files.keys()) {
-      if (!p.startsWith(prefix)) continue;
+      if (!p.startsWith(prefix)) {
+        continue;
+      }
       out.push({ name: p.slice(prefix.length), isFile: true, isDirectory: false, relativePath: p });
     }
     out.sort((a, b) =>

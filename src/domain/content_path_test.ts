@@ -69,7 +69,10 @@ Deno.test("ContentPath.isExcluded: empty path not excluded", () => {
 
 // TC-05: ContentPath.resolveMarkdownLink produces deep-link paths
 Deno.test("ContentPath.resolveMarkdownLink: relative link with dir", () => {
-  assertEquals(new ContentPath("docs/guide.md").resolveMarkdownLink("./other.md"), "/docs/other.md");
+  assertEquals(
+    new ContentPath("docs/guide.md").resolveMarkdownLink("./other.md"),
+    "/docs/other.md",
+  );
 });
 
 Deno.test("ContentPath.resolveMarkdownLink: anchor preserved", () => {
@@ -84,7 +87,10 @@ Deno.test("ContentPath.resolveMarkdownLink: root relativePath", () => {
 });
 
 Deno.test("ContentPath.resolveMarkdownLink: parent dir link", () => {
-  assertEquals(new ContentPath("docs/guide/_.md").resolveMarkdownLink("../index.md"), "/docs/index.md");
+  assertEquals(
+    new ContentPath("docs/guide/_.md").resolveMarkdownLink("../index.md"),
+    "/docs/index.md",
+  );
 });
 
 // TC-06: ContentPath.rewriteImageSrc blocks traversal
@@ -105,13 +111,19 @@ Deno.test("ContentPath.rewriteImageSrc: relative image rewritten to /content/", 
 
 Deno.test("ContentPath.rewriteImageSrc: https URL preserved unchanged", () => {
   const warnings: string[] = [];
-  const result = new ContentPath("posts/_.md").rewriteImageSrc("https://example.com/x.png", warnings);
+  const result = new ContentPath("posts/_.md").rewriteImageSrc(
+    "https://example.com/x.png",
+    warnings,
+  );
   assertEquals(result, "https://example.com/x.png");
 });
 
 Deno.test("ContentPath.rewriteImageSrc: data URI preserved", () => {
   const warnings: string[] = [];
-  const result = new ContentPath("posts/_.md").rewriteImageSrc("data:image/png;base64,abc", warnings);
+  const result = new ContentPath("posts/_.md").rewriteImageSrc(
+    "data:image/png;base64,abc",
+    warnings,
+  );
   assertEquals(result, "data:image/png;base64,abc");
 });
 

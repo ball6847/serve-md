@@ -225,3 +225,26 @@ Layering rules (enforced by **review only** — see §10):
 | Tests    | `Deno.test` (strong service coverage; 100% goal) |
 | Database | **None**                                         |
 | ORM      | **None**                                         |
+
+---
+
+## 13. Code Style — Curly Braces
+
+- **Curly braces must always be used** on `if`, `else`, `for`, `while`, `do`, and similar control flow statements — even when the body is a single statement.
+- **Never omit braces** for brevity. Explicit braces improve readability, reduce diff noise, and prevent bugs when code is later extended.
+
+```ts
+// ❌ Wrong
+if (condition) doSomething();
+
+for (let i = 0; i < n; i++) doWork(i);
+
+// ✅ Correct
+if (condition) {
+  doSomething();
+}
+
+for (let i = 0; i < n; i++) {
+  doWork(i);
+}
+```

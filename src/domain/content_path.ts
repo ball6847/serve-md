@@ -55,8 +55,12 @@ export class ContentPath {
     const parts = this.relativePath.split("/").filter((p) => p.length > 0);
     const wl = new Set(dotWhitelist);
     for (const p of parts) {
-      if (p.startsWith(".") && !wl.has(p)) return true;
-      if (ALWAYS_EXCLUDE_DIRS.has(p)) return true;
+      if (p.startsWith(".") && !wl.has(p)) {
+        return true;
+      }
+      if (ALWAYS_EXCLUDE_DIRS.has(p)) {
+        return true;
+      }
     }
     return false;
   }
@@ -87,10 +91,16 @@ export class ContentPath {
    *   prefixed with `/content/`.
    */
   rewriteImageSrc(href: string, warnings: string[]): string {
-    if (href.startsWith("data:")) return href;
-    if (/^https?:\/\//i.test(href)) return href;
+    if (href.startsWith("data:")) {
+      return href;
+    }
+    if (/^https?:\/\//i.test(href)) {
+      return href;
+    }
     if (href.startsWith("/")) {
-      if (href.startsWith("/content/")) return href;
+      if (href.startsWith("/content/")) {
+        return href;
+      }
       return href;
     }
     if (href.includes("..")) {

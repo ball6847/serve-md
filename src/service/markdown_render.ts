@@ -4,11 +4,11 @@ import { trySync } from "../utils/try_sync.ts";
 import { Frontmatter } from "../domain/frontmatter.ts";
 import { ContentPath } from "../domain/content_path.ts";
 import {
-  slugify,
-  escapeHtml,
-  unescapeHtml,
   escapeAttr,
+  escapeHtml,
   isMarkdownLink,
+  slugify,
+  unescapeHtml,
 } from "../utils/markdown_utils.ts";
 export interface TocEntry {
   id: string;
@@ -90,7 +90,9 @@ export class MarkdownRenderService {
     // Pre-construct ContentPath for link/image resolution in renderers below.
     // options.relativeDir is a directory, so append a synthetic filename so
     // ContentPath.directory returns the original dir (dirname("posts/_.md") === "posts").
-    const dir = options.relativeDir === "." || options.relativeDir === "" ? "" : options.relativeDir;
+    const dir = options.relativeDir === "." || options.relativeDir === ""
+      ? ""
+      : options.relativeDir;
     const contentPath = new ContentPath(dir.length === 0 ? "_.md" : `${dir}/_.md`);
 
     // heading IDs

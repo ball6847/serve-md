@@ -99,11 +99,15 @@ export class FilesHandler {
       if (largeFile(stat.size)) {
         // For large markdown, still include the raw text but skip render to avoid blocking
         const [readErr, t] = await to(this.#deps.store.readText(known.relativePath));
-        if (readErr) throw new NotFoundError("failed to read", { cause: readErr });
+        if (readErr) {
+          throw new NotFoundError("failed to read", { cause: readErr });
+        }
         text = t;
       } else if (this.#deps.renderer) {
         const [readErr, t] = await to(this.#deps.store.readText(known.relativePath));
-        if (readErr) throw new NotFoundError("failed to read", { cause: readErr });
+        if (readErr) {
+          throw new NotFoundError("failed to read", { cause: readErr });
+        }
         text = t;
         const result = this.#deps.renderer.render(t, { relativeDir });
         html = result.html;
@@ -160,21 +164,45 @@ export class FilesHandler {
 export function contentTypeFor(pathOrName: string): string {
   const name = pathOrName.split("/").pop() ?? pathOrName;
   const lower = name.toLowerCase();
-  if (lower.endsWith(".md") || lower.endsWith(".markdown")) return "text/markdown; charset=utf-8";
-  if (lower.endsWith(".html") || lower.endsWith(".htm")) return "text/html; charset=utf-8";
-  if (lower.endsWith(".css")) return "text/css; charset=utf-8";
+  if (lower.endsWith(".md") || lower.endsWith(".markdown")) {
+    return "text/markdown; charset=utf-8";
+  }
+  if (lower.endsWith(".html") || lower.endsWith(".htm")) {
+    return "text/html; charset=utf-8";
+  }
+  if (lower.endsWith(".css")) {
+    return "text/css; charset=utf-8";
+  }
   if (lower.endsWith(".js") || lower.endsWith(".mjs")) {
     return "application/javascript; charset=utf-8";
   }
-  if (lower.endsWith(".json")) return "application/json; charset=utf-8";
-  if (lower.endsWith(".svg")) return "image/svg+xml";
-  if (lower.endsWith(".png")) return "image/png";
-  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
-  if (lower.endsWith(".gif")) return "image/gif";
-  if (lower.endsWith(".webp")) return "image/webp";
-  if (lower.endsWith(".ico")) return "image/x-icon";
-  if (lower.endsWith(".txt")) return "text/plain; charset=utf-8";
-  if (lower.endsWith(".pdf")) return "application/pdf";
+  if (lower.endsWith(".json")) {
+    return "application/json; charset=utf-8";
+  }
+  if (lower.endsWith(".svg")) {
+    return "image/svg+xml";
+  }
+  if (lower.endsWith(".png")) {
+    return "image/png";
+  }
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
+    return "image/jpeg";
+  }
+  if (lower.endsWith(".gif")) {
+    return "image/gif";
+  }
+  if (lower.endsWith(".webp")) {
+    return "image/webp";
+  }
+  if (lower.endsWith(".ico")) {
+    return "image/x-icon";
+  }
+  if (lower.endsWith(".txt")) {
+    return "text/plain; charset=utf-8";
+  }
+  if (lower.endsWith(".pdf")) {
+    return "application/pdf";
+  }
   // Plain / unknown
   return "application/octet-stream";
 }

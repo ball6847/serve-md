@@ -128,13 +128,17 @@ export class DenoFileStore implements FileStore {
           // Verify real path stays inside root (handles dir symlinks)
           if (e.isSymlink) {
             const real = resolveReal(entryAbs);
-            if (!isInside(real, this.contentRoot)) continue;
+            if (!isInside(real, this.contentRoot)) {
+              continue;
+            }
           }
           stack.push(entryAbs);
         } else if (e.isFile) {
           if (e.isSymlink) {
             const real = resolveReal(entryAbs);
-            if (!isInside(real, this.contentRoot)) continue;
+            if (!isInside(real, this.contentRoot)) {
+              continue;
+            }
           }
           out.push({
             name: e.name,
@@ -201,7 +205,9 @@ function resolveReal(p: string): string {
 function isInside(candidate: string, root: string): boolean {
   const c = normalize(candidate);
   const r = normalize(root);
-  if (c === r) return true;
+  if (c === r) {
+    return true;
+  }
   const rel = relative(r, c);
   return !rel.startsWith("..") && !normalize(rel).startsWith("..");
 }

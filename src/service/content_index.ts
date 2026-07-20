@@ -57,11 +57,16 @@ export class ContentIndexService {
     const files: ContentFile[] = [];
     for (const e of entries) {
       const path = new ContentPath(e.relativePath);
-      if (!path.isContentFile()) continue;
-      if (path.isExcluded(this.#opts.dotWhitelist)) continue;
-      const kind = path.extension.toLowerCase() === ".html" || path.extension.toLowerCase() === ".htm"
-        ? "html"
-        : "markdown";
+      if (!path.isContentFile()) {
+        continue;
+      }
+      if (path.isExcluded(this.#opts.dotWhitelist)) {
+        continue;
+      }
+      const kind =
+        path.extension.toLowerCase() === ".html" || path.extension.toLowerCase() === ".htm"
+          ? "html"
+          : "markdown";
       files.push({
         relativePath: e.relativePath,
         basename: path.basename,
@@ -85,7 +90,9 @@ export class ContentIndexService {
   async #hydrateStats(files: ContentFile[]): Promise<void> {
     for (const f of files) {
       const [err, stat] = await to(this.#store.stat(f.relativePath));
-      if (err) continue;
+      if (err) {
+        continue;
+      }
       f.size = stat.size;
       f.mtime = stat.mtime;
     }
@@ -119,12 +126,18 @@ export class ContentIndexService {
    */
   async resolveDefaultOpen(): Promise<string | null> {
     // 1) README.md
-    if (this.#byPath.has("README.md")) return "README.md";
+    if (this.#byPath.has("README.md")) {
+      return "README.md";
+    }
     // 2) readme.md
-    if (this.#byPath.has("readme.md")) return "readme.md";
+    if (this.#byPath.has("readme.md")) {
+      return "readme.md";
+    }
     // 3) README (extensionless) — must be a regular file at root
     const [err, stat] = await to(this.#store.stat("README"));
-    if (!err && stat?.isFile) return "README";
+    if (!err && stat?.isFile) {
+      return "README";
+    }
     return null;
   }
 
@@ -162,7 +175,9 @@ export class ContentIndexService {
     for (const f of files) {
       const dir = posix.dirname(f.relativePath);
       const parent = dir === "." ? root : dirMap.get(dir);
-      if (!parent) continue;
+      if (!parent) {
+        continue;
+      }
       const fileNode: ContentTreeNode = {
         name: f.basename,
         relativePath: f.relativePath,
@@ -173,9 +188,13 @@ export class ContentIndexService {
     }
     // Sort: dirs first then files, both alphabetical
     for (const node of dirMap.values()) {
-      if (!node.children) continue;
+      if (!node.children) {
+        continue;
+      }
       node.children.sort((a, b) => {
-        if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
+        if (a.type !== b.type) {
+          return a.type === "dir" ? -1 : 1;
+        }
         return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
       });
     }

@@ -59,7 +59,9 @@ export function parseConfig(input: ConfigInput): AppConfig | ConfigInvalidError 
 }
 
 function parseDotWhitelist(raw: string | undefined): string[] {
-  if (raw === undefined || raw.trim() === "") return [];
+  if (raw === undefined || raw.trim() === "") {
+    return [];
+  }
   return raw
     .split(",")
     .map((s) => s.trim())

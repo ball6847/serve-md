@@ -67,10 +67,14 @@ export class WatchCoordinator {
   }
 
   async #loop(): Promise<void> {
-    if (!this.#watcher) return;
+    if (!this.#watcher) {
+      return;
+    }
     for await (const _event of this.#watcher) {
       // any event — debounce
-      if (this.#timer !== null) clearTimeout(this.#timer);
+      if (this.#timer !== null) {
+        clearTimeout(this.#timer);
+      }
       this.#timer = setTimeout(() => {
         void this.#refresh();
       }, this.#debounceMs) as unknown as number;
