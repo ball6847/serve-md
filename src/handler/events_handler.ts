@@ -1,5 +1,6 @@
 import type { Logger } from "../ports/logger.ts";
 import type { WatchCoordinator } from "../service/watch_coordinator.ts";
+import { trySync } from "../utils/try_sync.ts";
 
 /**
  * Server-Sent Events handler. Per plan 10:
@@ -37,11 +38,8 @@ export class EventsHandler {
         controller.enqueue(encoder.encode(`: connected\n\n`));
         cleanup = () => {
           this.#sseClients.delete(controller);
-          try {
-            controller.close();
-          } catch {
-            // ignore
-          }
+          // Synchronous stream cleanup — use trySync to swallow errors consistently.
+          trySync(() => controller.close());
         };
       },
       cancel: () => {
@@ -61,10 +59,12 @@ export class EventsHandler {
   #broadcast(): void {
     const encoder = new TextEncoder();
     for (const c of this.#sseClients) {
-      try {
-        c.enqueue(encoder.encode(`event: reload\ndata: {"reason":"fs"}\n\n`));
-      } catch {
-        // dead client
+      // Synchronous stream write — use trySync to catch dead clients consistently.
+      const [err] = trySync(() =>
+        c.enqueue(encoder.encode(`event: reload\ndata: {"reason":"fs"}\n\n`))
+      );
+      if (err) {
+        // dead client — remove from set
         this.#sseClients.delete(c);
       }
     }

@@ -1,7 +1,7 @@
 import { to } from "await-to-js";
 import * as posix from "@std/path/posix";
 import type { ContentFile, ContentTreeNode } from "../domain/content_file.ts";
-import type { DirEntry, FileStat, FileStore } from "../ports/file_store.ts";
+import type { DirEntry, FileStore } from "../ports/file_store.ts";
 import { NotFoundError, ReadFailedError } from "../domain/errors.ts";
 
 /**
@@ -93,12 +93,8 @@ export class ContentIndexService {
 
   async #hydrateStats(files: ContentFile[]): Promise<void> {
     for (const f of files) {
-      let stat: FileStat;
-      try {
-        stat = await this.#store.stat(f.relativePath);
-      } catch {
-        continue;
-      }
+      const [err, stat] = await to(this.#store.stat(f.relativePath));
+      if (err) continue;
       f.size = stat.size;
       f.mtime = stat.mtime;
     }
@@ -149,12 +145,8 @@ export class ContentIndexService {
     // 2) readme.md
     if (this.#byPath.has("readme.md")) return "readme.md";
     // 3) README (extensionless) — must be a regular file at root
-    try {
-      const stat = await this.#store.stat("README");
-      if (stat.isFile) return "README";
-    } catch {
-      // not present
-    }
+    const [err, stat] = await to(this.#store.stat("README"));
+    if (!err && stat?.isFile) return "README";
     return null;
   }
 

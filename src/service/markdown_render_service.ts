@@ -1,6 +1,7 @@
 import { Marked, type Tokens } from "marked";
 import hljs from "highlight.js";
 import { normalize as posixNormalize } from "@std/path/posix";
+import { trySync } from "../utils/try_sync.ts";
 export interface TocEntry {
   id: string;
   text: string;
@@ -49,22 +50,20 @@ export class MarkdownRenderService {
         code(this: unknown, token: Tokens.Code) {
           const code = token.text;
           const lang = (token.lang || "").trim().split(/\s+/)[0] ?? "";
-          let highlighted: string;
           if (lang === "mermaid") {
             // Preserve for client-side mermaid - do NOT escape, mermaid needs raw text
             // Also unescape any HTML entities that might be in the source
             const unescaped = unescapeHtml(code);
             return `<pre class="mermaid">${unescaped}</pre>\n`;
           }
-          try {
+          // Synchronous highlight.js call — use trySync for consistent error handling.
+          const [hlErr, highlightedResult] = trySync(() => {
             if (lang && hljs.getLanguage(lang)) {
-              highlighted = hljs.highlight(code, { language: lang }).value;
-            } else {
-              highlighted = hljs.highlightAuto(code).value;
+              return hljs.highlight(code, { language: lang }).value;
             }
-          } catch {
-            highlighted = escapeHtml(code);
-          }
+            return hljs.highlightAuto(code).value;
+          });
+          const highlighted = hlErr ? escapeHtml(code) : highlightedResult;
           const langClass = lang ? ` class="language-${escapeAttr(lang)}"` : "";
           return `<pre><code${langClass}>${highlighted}</code></pre>\n`;
         },
@@ -126,14 +125,13 @@ export class MarkdownRenderService {
     });
     void m2;
 
-    let parsedHtml = "";
-    try {
-      const out = m2.parse(body, { async: false });
-      parsedHtml = typeof out === "string" ? out : "";
-    } catch (e) {
-      warnings.push(`render error: ${String(e)}`);
+    // Synchronous marked.parse() call — use trySync for consistent error handling.
+    const [parseErr, out] = trySync(() => m2.parse(body, { async: false }));
+    if (parseErr) {
+      warnings.push(`render error: ${String(parseErr)}`);
       return { html: `<pre>${escapeHtml(body)}</pre>`, toc, warnings, frontmatter };
     }
+    const parsedHtml = typeof out === "string" ? out : "";
     return { html: parsedHtml, toc, warnings, frontmatter };
   }
 }

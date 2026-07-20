@@ -1,6 +1,7 @@
 import type { Logger } from "../ports/logger.ts";
 import { to } from "await-to-js";
 import { ReadFailedError } from "../domain/errors.ts";
+import { trySync } from "../utils/try_sync.ts";
 import type { ContentIndexService } from "./content_index_service.ts";
 
 export interface WatchOptions {
@@ -36,12 +37,18 @@ export class WatchCoordinator {
 
   start(contentRoot: string): Promise<void> {
     (async () => {
-      try {
-        this.#watcher = Deno.watchFs(contentRoot, { recursive: true });
+      // Deno.watchFs() is synchronous — use trySync for consistent error handling.
+      const [watchErr, watcher] = trySync(() => Deno.watchFs(contentRoot, { recursive: true }));
+      if (watchErr) {
+        this.#logger.warn({ err: String(watchErr) }, "watch fs init failed");
+        return;
+      }
+      this.#watcher = watcher;
+      const [err] = await to(this.#loop());
+      if (err) {
+        this.#logger.warn({ err: String(err) }, "watch loop failed");
+      } else {
         this.#logger.info({ contentRoot }, "watch started");
-        await this.#loop();
-      } catch (e) {
-        this.#logger.warn({ err: String(e) }, "watch start failed");
       }
     })();
     return Promise.resolve();
@@ -49,11 +56,8 @@ export class WatchCoordinator {
 
   stop(): void {
     if (this.#watcher) {
-      try {
-        this.#watcher.close();
-      } catch {
-        // ignore
-      }
+      // Synchronous cleanup — use trySync to swallow errors consistently.
+      trySync(() => this.#watcher!.close());
       this.#watcher = null;
     }
     if (this.#timer !== null) {
@@ -84,11 +88,8 @@ export class WatchCoordinator {
       this.#logger.info({ files: this.#index.listFiles().length }, "watch refresh ok");
     }
     for (const l of this.#listeners) {
-      try {
-        l();
-      } catch {
-        // ignore listener errors
-      }
+      // Synchronous listener callback — use trySync to swallow errors consistently.
+      trySync(() => l());
     }
   }
 
