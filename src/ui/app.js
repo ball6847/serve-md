@@ -35,6 +35,40 @@ function isSep(ch) {
   return ch === "/" || ch === "-" || ch === "_" || ch === " " || ch === ".";
 }
 
+// ---------- TOC helpers ----------
+const tocPanel = document.getElementById("toc-panel");
+const tocNav = document.getElementById("toc-nav");
+
+function showToc(entries) {
+  tocNav.innerHTML = "";
+  const minLevel = Math.min(...entries.map((e) => e.level));
+  for (const entry of entries) {
+    const a = document.createElement("a");
+    a.href = `#${entry.id}`;
+    a.textContent = entry.text;
+    a.title = entry.text;
+    a.dataset.indent = String(Math.max(0, entry.level - minLevel));
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      const target = document.getElementById(entry.id);
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        // Update hash without clearing the ?file= query param
+        const url = new URL(globalThis.location.href);
+        url.hash = entry.id;
+        history.replaceState(null, "", url.toString());
+      }
+    });
+    tocNav.appendChild(a);
+  }
+  tocPanel.classList.remove("hidden");
+}
+
+function hideToc() {
+  tocNav.innerHTML = "";
+  tocPanel.classList.add("hidden");
+}
+
 // ---------- App state ----------
 const state = {
   files: [], // [{relativePath, basename, kind, ...}]
@@ -409,11 +443,14 @@ async function openFile(path, updateUrl = true) {
   // Re-render tree to update selection highlight
   renderTree();
   contentHost.innerHTML = "";
+  hideToc();
 
-  // Sync path to URL so refresh stays on the same page
+  // Sync path to URL so refresh stays on the same page.
+  // Clear any previous heading hash so it does not stick to the new file.
   if (updateUrl) {
     const url = new URL(globalThis.location.href);
     url.searchParams.set("file", path);
+    url.hash = "";
     history.pushState({ file: path }, "", url.toString());
   }
 
@@ -441,6 +478,7 @@ async function openFile(path, updateUrl = true) {
   }
 
   if (meta.kind === "html") {
+    // TOC already hidden at start of openFile
     const iframe = document.createElement("iframe");
     iframe.src = `/content/${meta.relativePath}`;
     iframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms");
@@ -475,6 +513,13 @@ async function openFile(path, updateUrl = true) {
       wrap.textContent = "";
     }
     contentHost.appendChild(wrap);
+
+    // Show TOC panel if headings were extracted
+    if (Array.isArray(meta.toc) && meta.toc.length > 0) {
+      showToc(meta.toc);
+    } else {
+      hideToc();
+    }
 
     // Render mermaid diagrams
     renderMermaid();
