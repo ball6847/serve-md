@@ -115,15 +115,57 @@
   - **HTTP API**: health/ready, file list/tree, file content/raw, rendered markdown endpoint or server-driven page, static assets for UI and content-relative assets.
   - **Web UI**: shell with Search/Browse toggle, theme, content panel / iframe, TOC as applicable, live-reload client hook when watch enabled.
 - **Data Storage**: None durable beyond filesystem of the user’s project.
-- **Interface Design** (illustrative; exact paths may be refined in design/impl):
-  - `GET /health` — liveness
-  - `GET /ready` — content root readable
-  - `GET /api/files` — flat list for search (paths, labels, kinds)
-  - `GET /api/tree` — browse tree (content-only)
-  - `GET /api/files/*` or query `path=` — metadata + rendered HTML for markdown / iframe URL for html
-  - `GET /raw/*` or `/content/*` — raw bytes for iframe and relative assets (traversal-safe)
-  - `GET /` — SPA or server-rendered shell
-  - Optional SSE/WebSocket when `--watch` for reload signals
+- **Interface Design** (authoritative URI scheme — path-style for file identity):
+
+  | Method | Path | Purpose |
+  | ------ | ---- | ------- |
+  | `GET` | `/health` | Liveness |
+  | `GET` | `/ready` | Content root readable |
+  | `GET` | `/api/meta` | Server metadata (e.g. `{ watch: boolean }`) |
+  | `GET` | `/api/files` | Flat list for search (paths, labels, kinds) |
+  | `GET` | `/api/tree` | Browse tree (content-only) |
+  | `GET` | `/api/default-file` | Default-open path resolution |
+  | `GET` | `/api/file/<relative-path>` | JSON: metadata + rendered HTML for markdown / iframe hint for html |
+  | `GET` | `/content/<relative-path>` | Raw bytes for iframe and relative assets (traversal-safe) |
+  | `GET` | `/api/events` | SSE reload signals when `--watch` |
+  | `GET` | `/ui/<asset>` | Reader static assets (CSS/JS) |
+  | `GET` | `/` | Reader shell (HTML); default-open or “pick a file” |
+  | `GET` | `/<relative-path>` | **Reader shell for that file** (HTML) — browser address bar deep link |
+
+  **Browser URL = file path (locked product decision):**
+
+  - Opening a document must show the content-root-relative path **in the browser path**, not in a query string.
+  - **Before (unsupported):** `http://localhost:8787/?file=.context%2Fplans%2F2026-07-20%2FPLAN.md`
+  - **After (canonical):** `http://localhost:8787/.context/plans/2026-07-20/PLAN.md`
+  - Same rule for any content file: `/README.md`, `/docs/guide.md`, `/reports/out.html`.
+  - Optional fragment for in-document anchors remains allowed: `/docs/guide.md#section-id`.
+  - **`?file=` is not supported** for identifying the open document (no dual-mode).
+  - Full page load / refresh / share of `/{relative-path}` must open the reader shell with that file selected (server returns the **same shell HTML** as `/`, not raw file bytes). Client derives the open path from `location.pathname` (leading `/` stripped; URL-decoded).
+  - Selecting a file in Search/Browse updates the address bar via History API to `/{relative-path}` (no full reload required).
+  - Default open when visiting `/` only: resolve README chain; after open, address bar should navigate to `/{that-path}` (e.g. `/README.md`) so the URL always reflects the open file when one is selected.
+  - Internal Markdown links to other `.md` / `.markdown` files are rewritten to path-style deep links (`/resolved/rel/path.md` + optional `#anchor`), not `?file=`.
+
+  **Reserved path prefixes (never treat as content-file shell routes):**
+
+  - `/api`, `/api/*`
+  - `/content`, `/content/*` — raw bytes only
+  - `/ui`, `/ui/*` — static reader assets
+  - `/health`, `/ready`
+  - Exact `/` — shell without a path-selected file (then client default-open)
+
+  If a content-tree path would collide with a reserved prefix (e.g. a folder literally named `api`), reserved routes win; document as a known limitation (local tool).
+
+  **JSON / raw API (same path identity, different prefixes):**
+
+  - Canonical single-file JSON: `GET /api/file/<relative-path>`  
+    Examples: `/api/file/README.md`, `/api/file/.context/plans/foo.md`.
+  - Canonical raw/content: `GET /content/<relative-path>`  
+    Examples: `/content/docs/report.html`, `/content/assets/diagram.png`.
+  - **Do not** use `?path=` (or any query param) as the way to identify a file for `/api/file` or `/content`.
+  - Path segments are URL-decoded after routing (spaces → `%20`, unicode percent-encoded as usual). Leading-dot segments (e.g. `.context`) are valid path segments when the file is reachable via product scan rules (dot whitelist).
+  - Empty path on `/api/file` or `/content` → validation error (`400`).
+  - `..` segments, absolute paths, or resolved escapes outside the content root → `PATH_TRAVERSAL` (`400`).
+  - Fixed collection routes must not be swallowed by the `/api/file/*` splat.
 
 ### Constraints
 
@@ -160,6 +202,13 @@
 - [ ] Broken Mermaid blocks show inline errors without failing the whole page.
 - [ ] Unreadable/missing paths produce in-app or API error responses without crashing the process.
 - [ ] Path traversal attempts outside the content root are rejected.
+- [ ] Browser address bar for an open file is `http(s)://host:port/<relative-path>` (e.g. `http://localhost:8787/.context/plans/2026-07-20/PLAN.md`), **not** `/?file=…`.
+- [ ] Full page load of `/{relative-path}` serves the reader shell and opens that file; reserved prefixes (`/api`, `/content`, `/ui`, `/health`, `/ready`) are unaffected.
+- [ ] Selecting a file updates History to `/{relative-path}`; back/forward restores the open file from the path.
+- [ ] Markdown internal links to other content markdown files use path-style `/{rel}` (optional `#anchor`), not `?file=`.
+- [ ] Single-file JSON API uses `GET /api/file/<relative-path>` (not `?path=`).
+- [ ] Raw content uses `GET /content/<relative-path>` with the same relative-path encoding and traversal rules.
+- [ ] Empty file path segments on `/api/file` or `/content` return `400`; traversal returns `PATH_TRAVERSAL` (`400`); missing file returns `NOT_FOUND` (`404`).
 
 ### Quality Standards
 
@@ -197,7 +246,7 @@
 
 - [ ] Recursive scan with extension filter and exclude rules.
 - [ ] Flat list + tree builders.
-- [ ] API endpoints for list/tree/raw content.
+- [ ] API endpoints for list/tree/raw content (path-style file identity: `/api/file/<rel>`, `/content/<rel>`).
 - [ ] Default README resolution helper.
 
 **Deliverables**: JSON APIs returning only md/html tree; raw content fetch safe.  
@@ -243,6 +292,7 @@ This revision updates the v1.0 PRD based on implementation findings and product 
 | **Callouts** | **Removed from scope** | GFM-style callouts (`> [!NOTE]`, etc.) will not be supported in v1. They are not part of the core Markdown reading experience and add complexity to the render pipeline. |
 | **Math rendering** | **Removed from scope** | KaTeX / MathJax integration will not be supported in v1. Math rendering adds a significant client-side dependency and is not required for the core AI-planning-artifact use case. |
 | **TOC** | **Planned** | Table of contents rendering is retained as a planned feature. The server already computes TOC entries; the UI panel to display them will be added in a future update. |
+| **File URI shape** | **Path-style everywhere (locked)** | Browser URL for the open document is `/{relative-path}` (e.g. `http://localhost:8787/.context/plans/…/PLAN.md`), **not** `/?file=…`. JSON API is `GET /api/file/<relative-path>`; raw is `GET /content/<relative-path>`. No query-string file identity. Full refresh of a path serves the reader shell (SPA fallback), not raw bytes. Reserved prefixes: `/api`, `/content`, `/ui`, `/health`, `/ready`. |
 
 ### Beyond PRD Features (Implemented)
 
@@ -251,7 +301,7 @@ The following features were implemented during v1 development but were not speci
 | Feature | Description |
 | ------- | ----------- |
 | **Frontmatter display** | YAML frontmatter is parsed and rendered as a styled metadata block at the top of Markdown articles. |
-| **Markdown deep-linking** | Internal `.md` links are rewritten to `/?file=...` deep links, enabling in-app navigation without full page reloads. |
+| **Markdown deep-linking** | Internal `.md` links are rewritten to path-style deep links (`/{relative-path}` + optional `#anchor`) so in-app navigation and shareable URLs match the browser path scheme. |
 | **Mermaid pan/zoom + fullscreen** | Mermaid diagrams support mouse wheel zoom, click-to-pan, reset view, and fullscreen toggle — beyond the basic client-side rendering originally specified. |
 | **`/api/meta` endpoint** | Exposes server metadata (`{ watch: boolean }`) to the UI. |
 | **`.markdown` extension** | The scanner includes `.markdown` in addition to `.md`, `.html`, `.htm`. |
@@ -261,6 +311,7 @@ The following features were implemented during v1 development but were not speci
 | Round | Topics resolved |
 | ----- | --------------- |
 | 4 (v1.1) | **Removed**: humanized labels, callouts, math rendering. **Retained as planned**: TOC. **Documented**: beyond-PRD features that were implemented (frontmatter display, markdown deep-linking, mermaid pan/zoom+fullscreen, `/api/meta`, `.markdown` extension). |
+| 5 (v1.1) | **Locked**: browser URL is `/{relative-path}` (not `/?file=`); JSON `GET /api/file/<relative-path>`; raw `GET /content/<relative-path>`; SPA shell fallback for non-reserved paths; reserved prefixes documented. |
 
 ---
 
@@ -271,11 +322,13 @@ The following features were implemented during v1 development but were not speci
 | 1     | Problem = Glow-for-web for AI plan artifacts in git; MVP includes search, browse, live reload (later made flag), themes, TOC/anchors, math, footnotes, callouts, mermaid; **no auth**; content root = **cwd recursive**.                                                                                                                                                                                          |
 | 2     | Nav = **toggle Search \| Browse**; default open README if present; labels = **relative path + humanized basename**; browse = **md/html only**; HTML = **shell + iframe**.                                                                                                                                                                                                                                         |
 | 3     | HTML scripts **allowed** (owner-trusted); bind **127.0.0.1** default, **`--network`** → all interfaces; port **8787**; exclude **all dot paths** by default, **env whitelist** for specific dot dirs; extensions **md / html / htm**; watch via **`--watch` / `-w`**; default open **README.md → readme.md → README → pick a file**; non-crash errors; **inline** mermaid/math errors; **warn** if file &gt; 2MB. |
+| 4     | v1.1: removed humanized labels, callouts, math; TOC planned; documented beyond-PRD features.                                                                                                                                                                                                                                                                                                                      |
+| 5     | **Browser + API path-style**: open file URL is `/{rel}` (e.g. `/.context/plans/…/PLAN.md`), not `/?file=`; API `/api/file/<rel>`; raw `/content/<rel>`; no query file identity.                                                                                                                                                                                                                                      |
 
 ---
 
 **Document Version**: 1.1  
 **Created**: 2026-07-19  
-**Revised**: 2026-07-19  
-**Clarification Rounds**: 4  
-**Quality Score**: 94/100
+**Revised**: 2026-07-20  
+**Clarification Rounds**: 5  
+**Quality Score**: 95/100

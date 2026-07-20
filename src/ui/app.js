@@ -35,6 +35,32 @@ function isSep(ch) {
   return ch === "/" || ch === "-" || ch === "_" || ch === " " || ch === ".";
 }
 
+// ---------- URL helpers (path-style deep links) ----------
+
+/**
+ * Extract the content-root-relative file path from the current URL pathname.
+ * E.g. "/docs/a.md" → "docs/a.md", "/" → "".
+ */
+function pathFromLocation() {
+  const pathname = globalThis.location.pathname;
+  // Strip leading slash
+  if (pathname === "/" || pathname === "") return "";
+  return decodeURIComponent(pathname.replace(/^\//, ""));
+}
+
+/**
+ * Build a path-style URL for a given relative file path.
+ * Encodes each path segment but preserves `/` separators.
+ * E.g. "docs/a.md" → "/docs/a.md", ".context/x.md" → "/.context/x.md".
+ */
+function urlForFile(relativePath, hash) {
+  // Encode each segment individually so `/` stays as separator
+  const encoded = relativePath.split("/").map((seg) => encodeURIComponent(seg)).join("/");
+  let url = "/" + encoded;
+  if (hash) url += hash;
+  return url;
+}
+
 // ---------- TOC helpers ----------
 const tocPanel = document.getElementById("toc-panel");
 const tocNav = document.getElementById("toc-nav");
@@ -53,7 +79,7 @@ function showToc(entries) {
       const target = document.getElementById(entry.id);
       if (target) {
         target.scrollIntoView({ behavior: "smooth", block: "start" });
-        // Update hash without clearing the ?file= query param
+        // Update hash while preserving the file path in the URL
         const url = new URL(globalThis.location.href);
         url.hash = entry.id;
         history.replaceState(null, "", url.toString());
@@ -448,15 +474,15 @@ async function openFile(path, updateUrl = true) {
   // Sync path to URL so refresh stays on the same page.
   // Clear any previous heading hash so it does not stick to the new file.
   if (updateUrl) {
-    const url = new URL(globalThis.location.href);
-    url.searchParams.set("file", path);
-    url.hash = "";
-    history.pushState({ file: path }, "", url.toString());
+    const url = urlForFile(path);
+    history.pushState({ file: path }, "", url);
   }
 
   let meta;
   try {
-    const res = await fetch(`/api/file?path=${encodeURIComponent(path)}`);
+    // Fetch meta using path-style API route
+    const encodedPath = path.split("/").map((seg) => encodeURIComponent(seg)).join("/");
+    const res = await fetch(`/api/file/${encodedPath}`);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err?.error?.message || `${res.status}`);
@@ -499,13 +525,23 @@ async function openFile(path, updateUrl = true) {
 
     if (meta.html) {
       wrap.innerHTML = meta.html;
-      // Make internal links work with deep linking
-      wrap.querySelectorAll('a[href^="/?file="]').forEach((a) => {
-        a.addEventListener("click", (e) => {
-          e.preventDefault();
-          const fileParam = new URL(a.href).searchParams.get("file");
-          if (fileParam) openFile(fileParam);
-        });
+      // Make internal path-style links work with deep linking
+      wrap.querySelectorAll('a[href^="/"]').forEach((a) => {
+        const href = a.getAttribute("href") || "";
+        // Match path-style deep links: absolute paths ending in .md/.markdown
+        if (/\.markdown?$/i.test(href.split("#")[0])) {
+          a.addEventListener("click", (e) => {
+            e.preventDefault();
+            const linkPath = href.replace(/^\//, "").split("#")[0];
+            const hash = href.includes("#") ? "#" + href.split("#")[1] : "";
+            openFile(linkPath);
+            if (hash) {
+              const url = new URL(globalThis.location.href);
+              url.hash = hash.replace("#", "");
+              history.replaceState(null, "", url.toString());
+            }
+          });
+        }
       });
     } else if (meta.text) {
       wrap.textContent = meta.text;
@@ -530,19 +566,18 @@ async function openFile(path, updateUrl = true) {
 async function boot() {
   await refreshLists();
 
-  // Check URL for file parameter (deep link / refresh)
-  const urlParams = new URLSearchParams(globalThis.location.search);
-  const fileParam = urlParams.get("file");
-  if (fileParam) {
-    openFile(fileParam, false);
+  // Check URL pathname for file path (path-style deep link / refresh)
+  const path = pathFromLocation();
+  if (path) {
+    openFile(path, false);
   } else {
     // Try to open default file
     try {
       const res = await fetch("/api/default-file");
       const body = await res.json();
-      const path = body.data.path;
-      if (path) {
-        openFile(path);
+      const defaultPath = body.data.path;
+      if (defaultPath) {
+        openFile(defaultPath, true);
       }
     } catch {
       // ignore
@@ -551,7 +586,10 @@ async function boot() {
 
   // Handle back/forward navigation
   globalThis.addEventListener("popstate", (e) => {
-    if (e.state?.file) {
+    const path = pathFromLocation();
+    if (path) {
+      openFile(path, false);
+    } else if (e.state?.file) {
       openFile(e.state.file, false);
     }
   });

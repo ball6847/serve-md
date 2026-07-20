@@ -96,13 +96,13 @@ Deno.test("GET /api/default-file returns null when no README", async () => {
   assertEquals(body.data.path, null);
 });
 
-Deno.test("GET /api/file?path=... returns metadata for known md", async () => {
+Deno.test("GET /api/file/<path> returns metadata for known md", async () => {
   const store = new FakeFileStore("/root");
   store.add("a.md", "x");
   const index = new ContentIndexService(store, { dotWhitelist: [] });
   await index.refresh();
   const { app } = buildApp({ index, store });
-  const res = await app.request("http://local/api/file?path=a.md");
+  const res = await app.request("http://local/api/file/a.md");
   assertEquals(res.status, 200);
   const body = await res.json();
   assertEquals(body.data.relativePath, "a.md");
@@ -111,56 +111,72 @@ Deno.test("GET /api/file?path=... returns metadata for known md", async () => {
   assertEquals(body.data.contentType, "text/markdown; charset=utf-8");
 });
 
-Deno.test("GET /api/file?path=... large file flag set when > 2MB", async () => {
+Deno.test("GET /api/file/<path> large file flag set when > 2MB", async () => {
   const store = new FakeFileStore("/root");
   const big = new Uint8Array(LARGE_FILE_BYTES + 1);
   store.add("big.md", big);
   const index = new ContentIndexService(store, { dotWhitelist: [] });
   await index.refresh();
   const { app } = buildApp({ index, store });
-  const res = await app.request("http://local/api/file?path=big.md");
+  const res = await app.request("http://local/api/file/big.md");
   const body = await res.json();
   assertEquals(body.data.largeFile, true);
   assertEquals(body.data.size > LARGE_FILE_BYTES, true);
 });
 
-Deno.test("GET /api/file traversal rejected with 400", async () => {
+Deno.test("GET /api/file/<path> traversal rejected with 400", async () => {
   const store = new FakeFileStore("/root");
   const index = new ContentIndexService(store, { dotWhitelist: [] });
   await index.refresh();
   const { app } = buildApp({ index, store });
-  const res = await app.request("http://local/api/file?path=../etc/passwd");
+  // Hono normalizes literal `..` in URL paths before routing, so we use
+  // a URL-encoded segment that survives to the handler and is rejected by the store.
+  const res = await app.request("http://local/api/file/foo/..%2Fetc%2Fpasswd");
   assertEquals(res.status, 400);
   const body = await res.json();
   assertEquals(body.error.code, "PATH_TRAVERSAL");
 });
 
-Deno.test("GET /api/file missing file returns 404", async () => {
+Deno.test("GET /api/file/<path> missing file returns 404", async () => {
   const store = new FakeFileStore("/root");
   const index = new ContentIndexService(store, { dotWhitelist: [] });
   await index.refresh();
   const { app } = buildApp({ index, store });
-  const res = await app.request("http://local/api/file?path=nope.md");
+  const res = await app.request("http://local/api/file/nope.md");
   assertEquals(res.status, 404);
   const body = await res.json();
   assertEquals(body.error.code, "NOT_FOUND");
 });
 
-Deno.test("GET /api/file?path= missing path returns 400", async () => {
+Deno.test("GET /api/file with no path segment returns 400", async () => {
   const { app } = buildApp();
-  const res = await app.request("http://local/api/file?path=");
+  const res = await app.request("http://local/api/file/");
   assertEquals(res.status, 400);
   const body = await res.json();
   assertEquals(body.error.code, "PATH_TRAVERSAL");
 });
 
-Deno.test("GET /api/file?path=README (extensionless) returns plain meta", async () => {
+Deno.test("GET /api/file?path= query form no longer serves file (returns 400)", async () => {
+  const store = new FakeFileStore("/root");
+  store.add("a.md", "x");
+  const index = new ContentIndexService(store, { dotWhitelist: [] });
+  await index.refresh();
+  const { app } = buildApp({ index, store });
+  // The query-style route no longer exists. /api/file matches /api/file/*
+  // with an empty splat, which the handler rejects with PATH_TRAVERSAL.
+  const res = await app.request("http://local/api/file?path=a.md");
+  assertEquals(res.status, 400);
+  const body = await res.json();
+  assertEquals(body.error.code, "PATH_TRAVERSAL");
+});
+
+Deno.test("GET /api/file/<path=README (extensionless) returns plain meta", async () => {
   const store = new FakeFileStore("/root");
   store.add("README", "plain text content");
   const index = new ContentIndexService(store, { dotWhitelist: [] });
   await index.refresh();
   const { app } = buildApp({ index, store });
-  const res = await app.request("http://local/api/file?path=README");
+  const res = await app.request("http://local/api/file/README");
   assertEquals(res.status, 200);
   const body = await res.json();
   assertEquals(body.data.kind, "plain");
@@ -185,16 +201,12 @@ Deno.test("GET /content/<path> traversal rejected with 400", async () => {
   const index = new ContentIndexService(store, { dotWhitelist: [] });
   await index.refresh();
   const { app } = buildApp({ index, store });
-  const res = await app.request("http://local/content/../etc/passwd");
-  // Hono's path resolution may normalize this URL; we just need a 400 here.
-  // If the path is normalized, the result might be 404. Both are acceptable.
-  const status = res.status;
-  if (status === 400) {
-    const body = await res.json();
-    assertEquals(body.error.code, "PATH_TRAVERSAL");
-  } else {
-    assertEquals(status, 404);
-  }
+  // Hono normalizes literal `..` before routing; use encoded segment that
+  // survives to the handler and is rejected by the store.
+  const res = await app.request("http://local/content/foo/..%2Fetc%2Fpasswd");
+  assertEquals(res.status, 400);
+  const body = await res.json();
+  assertEquals(body.error.code, "PATH_TRAVERSAL");
 });
 
 Deno.test("GET /content/<path> missing returns 404", async () => {

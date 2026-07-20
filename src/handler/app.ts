@@ -3,10 +3,9 @@ import { HealthHandler } from "./health_handler.ts";
 import { FilesHandler } from "./files_handler.ts";
 import { EventsHandler } from "./events_handler.ts";
 import { errorEnvelope, statusFor } from "./error_mapper.ts";
-import { isAppError, PathTraversalError } from "../domain/errors.ts";
+import { isAppError } from "../domain/errors.ts";
 import type { Logger } from "../ports/logger.ts";
 import type { StaticAssetStore } from "../ports/static_asset_store.ts";
-import { PathQuery } from "../api/schemas/files.ts";
 import { to } from "await-to-js";
 
 export interface AppDeps {
@@ -19,6 +18,13 @@ export interface AppDeps {
   meta: () => { watch: boolean };
   /** Brand name shown in the topbar (e.g. project directory name). */
   brand: string;
+}
+
+/** Extract the wildcard portion of a splat route path. */
+function extractSplat(path: string, prefix: string): string {
+  if (path === prefix) return "";
+  if (path.startsWith(prefix + "/")) return path.slice(prefix.length + 1);
+  return path.slice(prefix.length);
 }
 
 /**
@@ -53,33 +59,42 @@ export function createApp(deps: AppDeps): Hono {
   app.get("/api/tree", () => deps.files.tree());
   app.get("/api/default-file", () => deps.files.defaultFile());
 
-  app.get("/api/file", async (c) => {
-    const raw = Object.fromEntries(new URL(c.req.url).searchParams);
-    const parsed = PathQuery.safeParse(raw);
-    if (!parsed.success) {
-      throw new PathTraversalError("missing or invalid path");
+  // Path-style file metadata: GET /api/file/<relative-path>
+  app.get("/api/file/*", async (c) => {
+    const rest = extractSplat(c.req.path, "/api/file");
+    if (rest.length === 0) {
+      throw new (await import("../domain/errors.ts")).PathTraversalError("empty file path");
     }
-    return await deps.files.fileMeta(parsed.data.path);
+    return await deps.files.fileMeta(rest);
   });
 
   // Raw content (for HTML iframe + relative assets)
   app.get("/content/*", async (c) => {
-    // Extract path from the wildcard
-    const rest = c.req.path.replace(/^\/content\//, "");
+    const rest = extractSplat(c.req.path, "/content");
     if (rest.length === 0) {
-      throw new PathTraversalError("empty content path");
+      throw new (await import("../domain/errors.ts")).PathTraversalError("empty content path");
     }
     const [err] = await to(deps.files.rawContent(rest));
     if (err) {
       if (isAppError(err)) throw err;
       throw err;
     }
-    // rawContent returns a Response; need to await. Re-call:
     return await deps.files.rawContent(rest);
   });
 
   // SSE for watch events
   app.get("/api/events", () => deps.events.events());
+
+  // SPA fallback: any non-reserved GET path serves the reader shell.
+  // Registered last so reserved routes (/api/*, /content/*, /ui/*, /health, /ready)
+  // take priority. The client then loads the file via the JSON API and shows
+  // an in-app error if the file is missing (same UX as a missing file today).
+  app.get("/*", async () => {
+    const html = await deps.staticAssets.readIndex();
+    return new Response(html, {
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  });
 
   app.onError((err, c) => {
     if (isAppError(err)) {

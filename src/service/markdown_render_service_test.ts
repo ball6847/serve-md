@@ -181,3 +181,33 @@ Deno.test("Frontmatter: empty frontmatter returns null", () => {
   const { frontmatter } = r.render(md, { relativeDir: "" });
   assertEquals(frontmatter, null);
 });
+
+// ---------- Path-style deep link tests ----------
+
+Deno.test("Relative markdown link rewrites to path-style deep link", () => {
+  const md = `[see other](./other.md)`;
+  const { html } = r.render(md, { relativeDir: "docs" });
+  assertStringIncludes(html, 'href="/docs/other.md"');
+  assertEquals(html.includes("?file="), false);
+});
+
+Deno.test("Relative markdown link with anchor rewrites to path-style + hash", () => {
+  const md = `[see section](./other.md#section)`;
+  const { html } = r.render(md, { relativeDir: "docs" });
+  assertStringIncludes(html, 'href="/docs/other.md#section"');
+  assertEquals(html.includes("?file="), false);
+});
+
+Deno.test("Root-level relative markdown link rewrites to path-style", () => {
+  const md = `[readme](README.md)`;
+  const { html } = r.render(md, { relativeDir: "" });
+  assertStringIncludes(html, 'href="/README.md"');
+  assertEquals(html.includes("?file="), false);
+});
+
+Deno.test("Parent-dir markdown link resolves to path-style", () => {
+  const md = `[up](../index.md)`;
+  const { html } = r.render(md, { relativeDir: "docs/guide" });
+  assertStringIncludes(html, 'href="/docs/index.md"');
+  assertEquals(html.includes("?file="), false);
+});

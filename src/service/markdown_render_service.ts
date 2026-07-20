@@ -117,7 +117,8 @@ export class MarkdownRenderService {
             const inner = (this as unknown as {
               parser: { parseInline: (t: Tokens.Generic[]) => string };
             }).parser.parseInline(token.tokens as unknown as Tokens.Generic[]);
-            return `<a href="/${escapeAttr(resolved)}"${titleAttr}>${inner}</a>`;
+            // resolveMarkdownLink already returns a leading /, so use it directly
+            return `<a href="${escapeAttr(resolved)}"${titleAttr}>${inner}</a>`;
           }
           return false; // default for external links
         },
@@ -209,7 +210,7 @@ function isMarkdownLink(href: string): boolean {
 }
 
 /** Resolve a relative markdown link against the current file's directory. */
-function resolveMarkdownLink(href: string, relativeDir: string): string {
+export function resolveMarkdownLink(href: string, relativeDir: string): string {
   // Split off anchor
   const [pathPart, anchorPart] = href.split("#", 2);
   const anchor = anchorPart ? `#${anchorPart}` : "";
@@ -218,9 +219,8 @@ function resolveMarkdownLink(href: string, relativeDir: string): string {
   const joined = baseDir.length === 0 ? pathPart : `${baseDir}/${pathPart}`;
   const resolved = posixNormalize(joined).replace(/^\.\//, "");
 
-  // Build deep link URL
-  const fileParam = encodeURIComponent(resolved);
-  return `?file=${fileParam}${anchor}`;
+  // Build path-style deep link URL: /<resolved-path>#anchor
+  return `/${resolved}${anchor}`;
 }
 
 /**

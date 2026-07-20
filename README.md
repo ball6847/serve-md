@@ -83,6 +83,7 @@ under the served root. HTML files are loaded into iframes with
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/` | Reader UI (HTML) |
+| `GET` | `/<relative-path>` | Reader UI with file opened (SPA fallback) |
 | `GET` | `/ui/styles.css` | Reader CSS |
 | `GET` | `/ui/app.js` | Reader JS |
 | `GET` | `/health` | Liveness — always 200 |
@@ -91,7 +92,7 @@ under the served root. HTML files are loaded into iframes with
 | `GET` | `/api/files` | `{ data: ContentFile[] }` |
 | `GET` | `/api/tree` | `{ data: ContentTreeNode }` |
 | `GET` | `/api/default-file` | `{ data: { path: string \| null } }` |
-| `GET` | `/api/file?path=<rel>` | Metadata + (for md) rendered `html`, `toc`, `warnings` |
+| `GET` | `/api/file/<rel>` | Metadata + (for md) rendered `html`, `toc`, `warnings` |
 | `GET` | `/content/<rel>` | Raw bytes for iframes and relative assets |
 | `GET` | `/api/events` | SSE stream of `event: reload` when watch is enabled |
 

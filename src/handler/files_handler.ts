@@ -13,8 +13,8 @@ import * as posix from "@std/path/posix";
  *   GET /api/files             → { data: ContentFile[] }
  *   GET /api/tree              → { data: ContentTreeNode }
  *   GET /api/default-file      → { data: { path: string | null } }
- *   GET /api/file?path=...     → { data: { ...meta, largeFile, kind } }
- *   GET /content/*             → raw bytes (path-traversal-safe)
+ *   GET /api/file/<rel>        → { data: { ...meta, largeFile, kind } }
+ *   GET /content/<rel>         → raw bytes (path-traversal-safe)
  */
 export const LARGE_FILE_BYTES = 2 * 1024 * 1024; // 2MB
 

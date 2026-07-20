@@ -2,13 +2,12 @@ import type { ContentFile, ContentTreeNode } from "../../domain/content_file.ts"
 import { z } from "zod";
 
 /**
- * Zod schemas for /api files endpoints. Used to validate query params and
+ * Zod schemas for /api files endpoints. Used to validate request inputs and
  * to type response shapes so handler code stays in sync.
+ *
+ * File identity is extracted from the URL path (e.g. `/api/file/<rel>`),
+ * not from query parameters.
  */
-
-export const PathQuery = z.object({
-  path: z.string().min(1, "path is required"),
-});
 
 export const ContentFileSchema: z.ZodType<ContentFile> = z.object({
   relativePath: z.string(),
