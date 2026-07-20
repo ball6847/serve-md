@@ -1,4 +1,5 @@
 import type { ContentFile } from "../domain/content_file.ts";
+import { Frontmatter } from "../domain/frontmatter.ts";
 import { MarkdownRenderService } from "../service/markdown_render.ts";
 import type { ContentIndexService } from "../service/content_index.ts";
 import type { FileStore } from "../ports/file_store.ts";
@@ -92,7 +93,7 @@ export class FilesHandler {
     let html: string | null = null;
     let toc: ReturnType<MarkdownRenderService["render"]>["toc"] | null = null;
     let warnings: string[] | null = null;
-    let frontmatter: Record<string, unknown> | null = null;
+    let frontmatter: Frontmatter | null = null;
 
     if (isMarkdown) {
       if (largeFile(stat.size)) {
@@ -127,7 +128,7 @@ export class FilesHandler {
         html,
         toc,
         warnings,
-        frontmatter,
+        frontmatter: frontmatter?.toJSON() ?? null,
       },
     });
   }

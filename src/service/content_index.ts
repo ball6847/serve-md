@@ -3,6 +3,7 @@ import * as posix from "@std/path/posix";
 import type { ContentFile, ContentTreeNode } from "../domain/content_file.ts";
 import type { DirEntry, FileStore } from "../ports/file_store.ts";
 import { NotFoundError, ReadFailedError } from "../domain/errors.ts";
+import { ContentPath } from "../domain/content_path.ts";
 
 /**
  * In-memory content-only index over a FileStore.
@@ -22,15 +23,6 @@ import { NotFoundError, ReadFailedError } from "../domain/errors.ts";
 export interface ContentIndexOptions {
   dotWhitelist: string[];
 }
-
-const CONTENT_EXTS = new Set([".md", ".markdown", ".html", ".htm"]);
-const ALWAYS_EXCLUDE_DIRS = new Set([
-  "node_modules",
-  "dist",
-  "build",
-  "vendor",
-  "target",
-]);
 
 export class ContentIndexService {
   readonly #store: FileStore;
@@ -64,16 +56,15 @@ export class ContentIndexService {
   async #rebuild(entries: DirEntry[]): Promise<void> {
     const files: ContentFile[] = [];
     for (const e of entries) {
-      const filename = e.relativePath.slice(e.relativePath.lastIndexOf("/") + 1);
-      const ext = extOf(filename);
-      if (!CONTENT_EXTS.has(ext.toLowerCase())) continue;
-      if (this.#isExcluded(e.relativePath)) continue;
-      const kind = (ext.toLowerCase() === ".html" || ext.toLowerCase() === ".htm")
+      const path = new ContentPath(e.relativePath);
+      if (!path.isContentFile()) continue;
+      if (path.isExcluded(this.#opts.dotWhitelist)) continue;
+      const kind = path.extension.toLowerCase() === ".html" || path.extension.toLowerCase() === ".htm"
         ? "html"
         : "markdown";
       files.push({
         relativePath: e.relativePath,
-        basename: filename,
+        basename: path.basename,
         kind,
         size: 0,
         mtime: null,
@@ -98,19 +89,6 @@ export class ContentIndexService {
       f.size = stat.size;
       f.mtime = stat.mtime;
     }
-  }
-
-  #isExcluded(relativePath: string): boolean {
-    const parts = relativePath.split("/").filter((p) => p.length > 0);
-    const wl = new Set(this.#opts.dotWhitelist);
-    for (const p of parts) {
-      if (p.startsWith(".")) {
-        // dot-segment: only allowed if its basename is whitelisted
-        if (!wl.has(p)) return true;
-      }
-      if (ALWAYS_EXCLUDE_DIRS.has(p)) return true;
-    }
-    return false;
   }
 
   listFiles(): ContentFile[] {
@@ -203,23 +181,4 @@ export class ContentIndexService {
     }
     return root;
   }
-}
-
-function extOf(filename: string): string {
-  const idx = filename.lastIndexOf(".");
-  return idx === -1 ? "" : filename.slice(idx);
-}
-
-/** Helper for callers that want to know whether a path is excluded without running refresh. */
-export function isExcludedPath(
-  relativePath: string,
-  dotWhitelist: string[],
-): boolean {
-  const parts = relativePath.split("/").filter((p) => p.length > 0);
-  const wl = new Set(dotWhitelist);
-  for (const p of parts) {
-    if (p.startsWith(".") && !wl.has(p)) return true;
-    if (ALWAYS_EXCLUDE_DIRS.has(p)) return true;
-  }
-  return false;
 }

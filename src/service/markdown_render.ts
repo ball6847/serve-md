@@ -1,7 +1,15 @@
 import { Marked, type Tokens } from "marked";
 import hljs from "highlight.js";
-import { normalize as posixNormalize } from "@std/path/posix";
 import { trySync } from "../utils/try_sync.ts";
+import { Frontmatter } from "../domain/frontmatter.ts";
+import { ContentPath } from "../domain/content_path.ts";
+import {
+  slugify,
+  escapeHtml,
+  unescapeHtml,
+  escapeAttr,
+  isMarkdownLink,
+} from "../utils/markdown_utils.ts";
 export interface TocEntry {
   id: string;
   text: string;
@@ -20,7 +28,7 @@ export interface RenderResult {
   /** Non-fatal warnings collected during render. */
   warnings: string[];
   /** Parsed YAML frontmatter metadata (if present). */
-  frontmatter: Record<string, unknown> | null;
+  frontmatter: Frontmatter | null;
 }
 
 /**
@@ -78,7 +86,12 @@ export class MarkdownRenderService {
     const seenIds = new Set<string>();
 
     // Parse frontmatter
-    const { frontmatter, body } = parseFrontmatter(markdown);
+    const { frontmatter, body } = Frontmatter.parse(markdown);
+    // Pre-construct ContentPath for link/image resolution in renderers below.
+    // options.relativeDir is a directory, so append a synthetic filename so
+    // ContentPath.directory returns the original dir (dirname("posts/_.md") === "posts").
+    const dir = options.relativeDir === "." || options.relativeDir === "" ? "" : options.relativeDir;
+    const contentPath = new ContentPath(dir.length === 0 ? "_.md" : `${dir}/_.md`);
 
     // heading IDs
     const m2 = this.#marked.use({
@@ -102,7 +115,7 @@ export class MarkdownRenderService {
           }" aria-hidden="true">#</a></h${level}>\n`;
         },
         image(this: unknown, token: Tokens.Image) {
-          const src = rewriteImageSrc(token.href, options.relativeDir, warnings);
+          const src = contentPath.rewriteImageSrc(token.href, warnings);
           const titleAttr = token.title ? ` title="${escapeAttr(token.title)}"` : "";
           const altAttr = ` alt="${escapeAttr(token.text)}"`;
           return `<img src="${escapeAttr(src)}"${altAttr}${titleAttr} loading="lazy" />`;
@@ -111,7 +124,7 @@ export class MarkdownRenderService {
           const href = token.href;
           // Rewrite relative .md/.markdown links to deep links
           if (isMarkdownLink(href) && !href.startsWith("http") && !href.startsWith("/")) {
-            const resolved = resolveMarkdownLink(href, options.relativeDir);
+            const resolved = contentPath.resolveMarkdownLink(href);
             const titleAttr = token.title ? ` title="${escapeAttr(token.title)}"` : "";
             const inner = (this as unknown as {
               parser: { parseInline: (t: Tokens.Generic[]) => string };
@@ -134,150 +147,4 @@ export class MarkdownRenderService {
     const parsedHtml = typeof out === "string" ? out : "";
     return { html: parsedHtml, toc, warnings, frontmatter };
   }
-}
-
-function slugify(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/<[^>]+>/g, "")
-    .replace(/[^\w\s-]+/g, "")
-    .trim()
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .slice(0, 80) || "section";
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function unescapeHtml(s: string): string {
-  return s
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, " ");
-}
-
-function escapeAttr(s: string): string {
-  return escapeHtml(s);
-}
-
-function rewriteImageSrc(
-  href: string,
-  relativeDir: string,
-  warnings: string[],
-): string {
-  // Skip data: URIs, absolute http(s), absolute paths starting with /
-  if (href.startsWith("data:")) return href;
-  if (/^https?:\/\//i.test(href)) return href;
-  if (href.startsWith("/")) {
-    // Strip the leading slash — under /content/ we own the route
-    if (href.startsWith("/content/")) return href;
-    return href; // pass through (browser will resolve against server origin)
-  }
-  // Relative URL: resolve against the markdown's directory
-  // Strip any traversal attempts
-  if (href.includes("..")) {
-    warnings.push(`image src contains '..': ${href}`);
-    return "#";
-  }
-  const baseDir = relativeDir === "" || relativeDir === "." ? "" : relativeDir;
-  const joined = baseDir.length === 0 ? href : `${baseDir}/${href}`;
-  // Normalize, then strip leading "./" artifacts
-  const resolved = posixNormalize(joined).replace(/^\.\//, "");
-  // Defense in depth: after normalize, ensure still no leading ../
-  if (resolved.startsWith("../") || resolved === "..") {
-    warnings.push(`image src escapes dir: ${href}`);
-    return "#";
-  }
-  return `/content/${resolved}`;
-}
-
-/** Check if a link points to a markdown file (relative, no protocol). */
-function isMarkdownLink(href: string): boolean {
-  const withoutHash = href.split("#")[0];
-  return withoutHash.endsWith(".md") || withoutHash.endsWith(".markdown");
-}
-
-/** Resolve a relative markdown link against the current file's directory. */
-export function resolveMarkdownLink(href: string, relativeDir: string): string {
-  // Split off anchor
-  const [pathPart, anchorPart] = href.split("#", 2);
-  const anchor = anchorPart ? `#${anchorPart}` : "";
-
-  const baseDir = relativeDir === "" || relativeDir === "." ? "" : relativeDir;
-  const joined = baseDir.length === 0 ? pathPart : `${baseDir}/${pathPart}`;
-  const resolved = posixNormalize(joined).replace(/^\.\//, "");
-
-  // Build path-style deep link URL: /<resolved-path>#anchor
-  return `/${resolved}${anchor}`;
-}
-
-/**
- * Parse YAML frontmatter from markdown.
- * Returns the parsed metadata and the body with frontmatter removed.
- * Uses a simple key: value parser — sufficient for common metadata fields.
- */
-export function parseFrontmatter(markdown: string): {
-  frontmatter: Record<string, unknown> | null;
-  body: string;
-} {
-  const match = markdown.match(/^---\s*\n([\s\S]*?)\n---\s*\n?/);
-  if (!match) {
-    return { frontmatter: null, body: markdown };
-  }
-
-  const yamlStr = match[1];
-  const body = markdown.slice(match[0].length);
-  const data: Record<string, unknown> = {};
-
-  for (const line of yamlStr.split("\n")) {
-    const colonIdx = line.indexOf(":");
-    if (colonIdx === -1) continue;
-    const key = line.slice(0, colonIdx).trim();
-    let value = line.slice(colonIdx + 1).trim();
-    // Remove quotes
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
-    // Parse arrays: [a, b, c]
-    if (value.startsWith("[") && value.endsWith("]")) {
-      data[key] = value
-        .slice(1, -1)
-        .split(",")
-        .map((s) => s.trim().replace(/^["']|["']$/g, ""));
-      continue;
-    }
-    // Parse booleans
-    if (value === "true") {
-      data[key] = true;
-      continue;
-    }
-    if (value === "false") {
-      data[key] = false;
-      continue;
-    }
-    // Parse numbers
-    if (/^\d+(\.\d+)?$/.test(value)) {
-      data[key] = Number(value);
-      continue;
-    }
-    if (value) data[key] = value;
-  }
-
-  if (Object.keys(data).length === 0) {
-    return { frontmatter: null, body: markdown };
-  }
-  return { frontmatter: data, body };
 }

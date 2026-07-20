@@ -122,7 +122,7 @@ author: John Doe
 # Hello`;
   const { frontmatter, html } = r.render(md, { relativeDir: "" });
   assertEquals(frontmatter?.title, "My Document");
-  assertEquals(frontmatter?.author, "John Doe");
+  assertEquals(frontmatter?.get("author"), "John Doe");
   assertStringIncludes(html, "<h1");
 });
 
@@ -142,8 +142,8 @@ draft: false
 ---
 # Hello`;
   const { frontmatter } = r.render(md, { relativeDir: "" });
-  assertEquals(frontmatter?.published, true);
-  assertEquals(frontmatter?.draft, false);
+  assertEquals(frontmatter?.get("published"), true);
+  assertEquals(frontmatter?.get("draft"), false);
 });
 
 Deno.test("Frontmatter: number parsing", () => {
@@ -153,8 +153,8 @@ count: 42
 ---
 # Hello`;
   const { frontmatter } = r.render(md, { relativeDir: "" });
-  assertEquals(frontmatter?.version, 1);
-  assertEquals(frontmatter?.count, 42);
+  assertEquals(frontmatter?.get("version"), 1);
+  assertEquals(frontmatter?.get("count"), 42);
 });
 
 Deno.test("Frontmatter: quoted values", () => {
@@ -165,7 +165,7 @@ description: 'Single quoted'
 # Hello`;
   const { frontmatter } = r.render(md, { relativeDir: "" });
   assertEquals(frontmatter?.title, 'My "Quoted" Title');
-  assertEquals(frontmatter?.description, "Single quoted");
+  assertEquals(frontmatter?.get("description"), "Single quoted");
 });
 
 Deno.test("Frontmatter: no frontmatter returns null", () => {
