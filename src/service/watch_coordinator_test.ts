@@ -1,7 +1,7 @@
 import { assertEquals } from "jsr:@std/assert@^1";
 import { join } from "@std/path";
 import { WatchCoordinator } from "./watch_coordinator.ts";
-import { ContentIndexService } from "./content_index_service.ts";
+import { ContentIndexService } from "./content_index.ts";
 import { DenoFileStore } from "../adapter/deno_file_store.ts";
 import { ConsoleLogger } from "../adapter/console_logger.ts";
 import type { Logger } from "../ports/logger.ts";

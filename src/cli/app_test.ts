@@ -1,11 +1,11 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@^1";
 import { createApp } from "./main.ts";
-import { HealthHandler } from "../handler/health_handler.ts";
-import { FilesHandler } from "../handler/files_handler.ts";
-import { EventsHandler } from "../handler/events_handler.ts";
+import { HealthHandler } from "../handler/health.ts";
+import { FilesHandler } from "../handler/files.ts";
+import { EventsHandler } from "../handler/events.ts";
 import { errorEnvelope, statusFor } from "../handler/error_mapper.ts";
 import { FakeFileStore } from "../adapter/fake_file_store.ts";
-import { ContentIndexService } from "../service/content_index_service.ts";
+import { ContentIndexService } from "../service/content_index.ts";
 import { ConsoleLogger } from "../adapter/console_logger.ts";
 import { NotFoundError, PathTraversalError } from "../domain/errors.ts";
 import { Hono } from "hono";

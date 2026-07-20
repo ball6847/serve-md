@@ -194,18 +194,19 @@ Layering rules (enforced by **review only** — see §10):
 
 ## 11. Naming Conventions — Summary
 
-| Concern             | Convention                              | Example                                        |
-| ------------------- | --------------------------------------- | ---------------------------------------------- |
-| URL paths           | lowercase kebab-case, no trailing slash | `/api/files`, `/health`                        |
-| API req/resp fields | camelCase                               | `contentRoot`, `lastModifiedAt`                |
-| Error codes         | SCREAMING_SNAKE_CASE                    | `PATH_TRAVERSAL`, `CONFIG_INVALID`             |
-| Log fields          | camelCase                               | `requestId`, `errCode`                         |
-| Env vars            | UPPER_SNAKE_CASE                        | `LOG_LEVEL`, `PORT`                            |
-| TS files            | snake_case (`src/ui` uses camelCase)    | `markdown_service.ts`, `ui/markdownService.ts` |
-| Deno source imports | relative (no aliases)                   | `../service/markdownService.ts`                |
-| Classes             | PascalCase                              | `MarkdownService`                              |
-| Interfaces (ports)  | PascalCase, no `I` prefix               | `FileStore`, `Logger`                          |
-| Sentinel errors     | PascalCase, `Error` suffix              | `MarkdownReadFailedError`                      |
+| Concern             | Convention                                           | Example                                                                    |
+| ------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------- |
+| URL paths           | lowercase kebab-case, no trailing slash              | `/api/files`, `/health`                                                    |
+| API req/resp fields | camelCase                                            | `contentRoot`, `lastModifiedAt`                                            |
+| Error codes         | SCREAMING_SNAKE_CASE                                 | `PATH_TRAVERSAL`, `CONFIG_INVALID`                                         |
+| Log fields          | camelCase                                            | `requestId`, `errCode`                                                     |
+| Env vars            | UPPER_SNAKE_CASE                                     | `LOG_LEVEL`, `PORT`                                                        |
+| TS files            | snake_case (`src/ui` uses camelCase), no type suffix | `markdown.ts`, `ui/markdownService.ts`                                     |
+| Filename suffixes   | omit technical layer suffix                          | `markdown.ts` not `markdown_service.ts`; `files.ts` not `files_handler.ts` |
+| Deno source imports | relative (no aliases)                                | `../service/markdownService.ts`                                            |
+| Classes             | PascalCase                                           | `MarkdownService`                                                          |
+| Interfaces (ports)  | PascalCase, no `I` prefix                            | `FileStore`, `Logger`                                                      |
+| Sentinel errors     | PascalCase, `Error` suffix                           | `MarkdownReadFailedError`                                                  |
 
 ---
 

@@ -1,5 +1,5 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@^1";
-import { MarkdownRenderService } from "./markdown_render_service.ts";
+import { MarkdownRenderService } from "./markdown_render.ts";
 
 const r = new MarkdownRenderService();
 

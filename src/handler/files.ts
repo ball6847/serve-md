@@ -1,6 +1,6 @@
 import type { ContentFile } from "../domain/content_file.ts";
-import { MarkdownRenderService } from "../service/markdown_render_service.ts";
-import type { ContentIndexService } from "../service/content_index_service.ts";
+import { MarkdownRenderService } from "../service/markdown_render.ts";
+import type { ContentIndexService } from "../service/content_index.ts";
 import type { FileStore } from "../ports/file_store.ts";
 import type { Logger } from "../ports/logger.ts";
 import { NotFoundError, ReadFailedError } from "../domain/errors.ts";

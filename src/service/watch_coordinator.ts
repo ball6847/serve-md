@@ -2,7 +2,7 @@ import type { Logger } from "../ports/logger.ts";
 import { to } from "await-to-js";
 import { ReadFailedError } from "../domain/errors.ts";
 import { trySync } from "../utils/try_sync.ts";
-import type { ContentIndexService } from "./content_index_service.ts";
+import type { ContentIndexService } from "./content_index.ts";
 
 export interface WatchOptions {
   /** Debounce window in ms. */

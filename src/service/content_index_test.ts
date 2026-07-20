@@ -1,5 +1,5 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@^1";
-import { ContentIndexService } from "./content_index_service.ts";
+import { ContentIndexService } from "./content_index.ts";
 import { FakeFileStore } from "../adapter/fake_file_store.ts";
 
 function makeStore(): FakeFileStore {

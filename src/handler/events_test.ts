@@ -1,10 +1,10 @@
 import { assertEquals } from "jsr:@std/assert@^1";
 import { createApp } from "../cli/main.ts";
-import { HealthHandler } from "./health_handler.ts";
-import { FilesHandler } from "./files_handler.ts";
-import { EventsHandler } from "./events_handler.ts";
+import { HealthHandler } from "./health.ts";
+import { FilesHandler } from "./files.ts";
+import { EventsHandler } from "./events.ts";
 import { FakeFileStore } from "../adapter/fake_file_store.ts";
-import { ContentIndexService } from "../service/content_index_service.ts";
+import { ContentIndexService } from "../service/content_index.ts";
 import { ConsoleLogger } from "../adapter/console_logger.ts";
 import { WatchCoordinator } from "../service/watch_coordinator.ts";
 import type { Logger } from "../ports/logger.ts";

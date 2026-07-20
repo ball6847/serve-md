@@ -1,12 +1,12 @@
 import { assertEquals, assertInstanceOf } from "jsr:@std/assert@^1";
-import { FilesHandler, LARGE_FILE_BYTES } from "./files_handler.ts";
+import { FilesHandler, LARGE_FILE_BYTES } from "./files.ts";
 import { FakeFileStore } from "../adapter/fake_file_store.ts";
-import { ContentIndexService } from "../service/content_index_service.ts";
+import { ContentIndexService } from "../service/content_index.ts";
 import { ConsoleLogger } from "../adapter/console_logger.ts";
 import { NotFoundError, PathTraversalError, ReadFailedError } from "../domain/errors.ts";
 import { createApp } from "../cli/main.ts";
-import { HealthHandler } from "./health_handler.ts";
-import { EventsHandler } from "./events_handler.ts";
+import { HealthHandler } from "./health.ts";
+import { EventsHandler } from "./events.ts";
 import { Hono } from "hono";
 import type { Logger } from "../ports/logger.ts";
 import { FakeStaticAssetStore } from "../adapter/fake_static_asset_store.ts";
