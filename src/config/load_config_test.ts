@@ -1,5 +1,5 @@
 import { assertEquals, assertInstanceOf, assertStringIncludes } from "jsr:@std/assert@^1";
-import { type ConfigInput, parseConfig } from "./loadConfig.ts";
+import { type ConfigInput, parseConfig } from "./load_config.ts";
 import { ConfigInvalidError, isAppError } from "../domain/errors.ts";
 import type { AppConfig } from "./schema.ts";
 

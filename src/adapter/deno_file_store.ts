@@ -1,6 +1,6 @@
 import { join, normalize, relative, SEPARATOR } from "@std/path";
 import { NotFoundError, PathTraversalError, ReadFailedError } from "../domain/errors.ts";
-import type { DirEntry, FileStat, FileStore } from "../ports/fileStore.ts";
+import type { DirEntry, FileStat, FileStore } from "../ports/file_store.ts";
 
 function toPosix(p: string): string {
   // Normalize backslashes to forward slashes for cross-platform consistency.

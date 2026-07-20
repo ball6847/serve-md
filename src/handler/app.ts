@@ -1,8 +1,8 @@
 import { Hono } from "hono";
-import { HealthHandler } from "./healthHandler.ts";
-import { FilesHandler } from "./filesHandler.ts";
-import { EventsHandler } from "./eventsHandler.ts";
-import { errorEnvelope, statusFor } from "./errorMapper.ts";
+import { HealthHandler } from "./health_handler.ts";
+import { FilesHandler } from "./files_handler.ts";
+import { EventsHandler } from "./events_handler.ts";
+import { errorEnvelope, statusFor } from "./error_mapper.ts";
 import { isAppError, NotFoundError, PathTraversalError } from "../domain/errors.ts";
 import type { Logger } from "../ports/logger.ts";
 import { PathQuery } from "../api/schemas/files.ts";

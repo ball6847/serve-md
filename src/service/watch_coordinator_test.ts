@@ -1,9 +1,9 @@
 import { assertEquals } from "jsr:@std/assert@^1";
 import { join } from "@std/path";
-import { WatchCoordinator } from "./watchCoordinator.ts";
-import { ContentIndexService } from "./contentIndexService.ts";
-import { DenoFileStore } from "../adapter/denoFileStore.ts";
-import { ConsoleLogger } from "../adapter/consoleLogger.ts";
+import { WatchCoordinator } from "./watch_coordinator.ts";
+import { ContentIndexService } from "./content_index_service.ts";
+import { DenoFileStore } from "../adapter/deno_file_store.ts";
+import { ConsoleLogger } from "../adapter/console_logger.ts";
 import type { Logger } from "../ports/logger.ts";
 
 function silentLogger(): Logger {

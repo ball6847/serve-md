@@ -1,4 +1,4 @@
-import type { ContentFile, ContentTreeNode } from "../../domain/contentFile.ts";
+import type { ContentFile, ContentTreeNode } from "../../domain/content_file.ts";
 import { z } from "zod";
 
 /**

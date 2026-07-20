@@ -1,8 +1,8 @@
-import type { ContentFile } from "../domain/contentFile.ts";
+import type { ContentFile } from "../domain/content_file.ts";
 import { inferKind } from "../service/humanize.ts";
-import { MarkdownRenderService } from "../service/markdownRenderService.ts";
-import type { ContentIndexService } from "../service/contentIndexService.ts";
-import type { FileStore } from "../ports/fileStore.ts";
+import { MarkdownRenderService } from "../service/markdown_render_service.ts";
+import type { ContentIndexService } from "../service/content_index_service.ts";
+import type { FileStore } from "../ports/file_store.ts";
 import type { Logger } from "../ports/logger.ts";
 import { NotFoundError, ReadFailedError } from "../domain/errors.ts";
 import { to } from "await-to-js";

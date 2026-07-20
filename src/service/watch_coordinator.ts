@@ -1,7 +1,7 @@
 import type { Logger } from "../ports/logger.ts";
 import { to } from "await-to-js";
 import { ReadFailedError } from "../domain/errors.ts";
-import type { ContentIndexService } from "./contentIndexService.ts";
+import type { ContentIndexService } from "./content_index_service.ts";
 
 export interface WatchOptions {
   /** Debounce window in ms. */

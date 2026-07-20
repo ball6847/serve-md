@@ -1,4 +1,4 @@
-import type { DirEntry, FileStat, FileStore } from "../ports/fileStore.ts";
+import type { DirEntry, FileStat, FileStore } from "../ports/file_store.ts";
 import { NotFoundError, PathTraversalError } from "../domain/errors.ts";
 
 /**

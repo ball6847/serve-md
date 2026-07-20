@@ -1,5 +1,5 @@
 import type { Logger } from "../ports/logger.ts";
-import type { WatchCoordinator } from "../service/watchCoordinator.ts";
+import type { WatchCoordinator } from "../service/watch_coordinator.ts";
 
 /**
  * Server-Sent Events handler. Per plan 10:

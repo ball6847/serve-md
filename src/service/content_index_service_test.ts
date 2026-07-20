@@ -1,6 +1,6 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@^1";
-import { ContentIndexService } from "./contentIndexService.ts";
-import { FakeFileStore } from "../adapter/fakeFileStore.ts";
+import { ContentIndexService } from "./content_index_service.ts";
+import { FakeFileStore } from "../adapter/fake_file_store.ts";
 
 function makeStore(): FakeFileStore {
   const store = new FakeFileStore("/root");

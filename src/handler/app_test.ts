@@ -1,11 +1,11 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@^1";
 import { createApp } from "./app.ts";
-import { HealthHandler } from "./healthHandler.ts";
-import { FilesHandler } from "./filesHandler.ts";
-import { EventsHandler } from "./eventsHandler.ts";
-import { FakeFileStore } from "../adapter/fakeFileStore.ts";
-import { ContentIndexService } from "../service/contentIndexService.ts";
-import { ConsoleLogger } from "../adapter/consoleLogger.ts";
+import { HealthHandler } from "./health_handler.ts";
+import { FilesHandler } from "./files_handler.ts";
+import { EventsHandler } from "./events_handler.ts";
+import { FakeFileStore } from "../adapter/fake_file_store.ts";
+import { ContentIndexService } from "../service/content_index_service.ts";
+import { ConsoleLogger } from "../adapter/console_logger.ts";
 import { NotFoundError, PathTraversalError } from "../domain/errors.ts";
 import { Hono } from "hono";
 import type { Logger } from "../ports/logger.ts";
@@ -30,7 +30,7 @@ async function build(opts?: { throwOnReady?: Error }): Promise<Built> {
   if (opts?.throwOnReady) {
     const failErr: Error = opts.throwOnReady;
     class FailingStatStore extends FakeFileStore {
-      override stat(_p: string): Promise<import("../ports/fileStore.ts").FileStat> {
+      override stat(_p: string): Promise<import("../ports/file_store.ts").FileStat> {
         return Promise.reject(failErr);
       }
     }

@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@^1";
-import { ConsoleLogger } from "./consoleLogger.ts";
+import { ConsoleLogger } from "./console_logger.ts";
 import { LogLevel } from "../ports/logger.ts";
 
 function captureLog(level: LogLevel): {

@@ -5,7 +5,7 @@ import {
   assertStringIncludes,
 } from "jsr:@std/assert@^1";
 import { join, normalize } from "@std/path";
-import { DenoFileStore } from "./denoFileStore.ts";
+import { DenoFileStore } from "./deno_file_store.ts";
 import { NotFoundError, PathTraversalError, ReadFailedError } from "../domain/errors.ts";
 
 async function makeRoot(): Promise<{ root: string; cleanup: () => Promise<void> }> {

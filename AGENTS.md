@@ -25,9 +25,9 @@ This project is a **local Glow-for-web style Markdown/HTML reader** (single proc
 
 CLI via Cliffy, wired in a single composition root (e.g. `src/cli/main.ts`):
 
-| Command | Responsibility                                      | Compose service |
-| ------- | --------------------------------------------------- | --------------- |
-| `serve` | Hono HTTP server (JSON API + static/light UI).      | `serve`         |
+| Command | Responsibility                                 | Compose service |
+| ------- | ---------------------------------------------- | --------------- |
+| `serve` | Hono HTTP server (JSON API + static/light UI). | `serve`         |
 
 Rules:
 
@@ -169,7 +169,7 @@ Layering rules (enforced by **review only** — see §10):
 ## 9. Testing
 
 - **Framework**: `Deno.test`. Coverage via `deno coverage`.
-- **Service layer**: aim for strong coverage; prioritize path safety, scan/index rules, and render orchestration. **100% line coverage for `src/service/**` is a goal**, not a hard CI fail gate in early v1—tighten to a hard gate once core services stabilize.
+- **Service layer**: aim for strong coverage; prioritize path safety, scan/index rules, and render orchestration. **100% line coverage for `src/service/**` is a goal\*\*, not a hard CI fail gate in early v1—tighten to a hard gate once core services stabilize.
 - **Must-have tests** (do not skip): path traversal rejection, content-only filtering (md/html/htm), dot-path exclusion + whitelist, default README resolution, large-file warning metadata, not-found/unreadable handling.
 - Adapter: integration tests with temp dirs / stubbed subprocess. No live network in CI unless explicitly allowed.
 - Handler: tests against the Hono app with fake services injected.
@@ -194,32 +194,32 @@ Layering rules (enforced by **review only** — see §10):
 
 ## 11. Naming Conventions — Summary
 
-| Concern              | Convention                              | Example                            |
-| -------------------- | --------------------------------------- | ---------------------------------- |
-| URL paths            | lowercase kebab-case, no trailing slash | `/api/files`, `/health`            |
-| API req/resp fields  | camelCase                               | `contentRoot`, `lastModifiedAt`    |
-| Error codes          | SCREAMING_SNAKE_CASE                    | `PATH_TRAVERSAL`, `CONFIG_INVALID` |
-| Log fields           | camelCase                               | `requestId`, `errCode`             |
-| Env vars             | UPPER_SNAKE_CASE                        | `LOG_LEVEL`, `PORT`                |
-| TS files             | camelCase                               | `markdownService.ts`               |
-| Deno source imports  | relative (no aliases)                   | `../service/markdownService.ts`    |
-| Classes              | PascalCase                              | `MarkdownService`                  |
-| Interfaces (ports)   | PascalCase, no `I` prefix               | `FileStore`, `Logger`              |
-| Sentinel errors      | PascalCase, `Error` suffix              | `MarkdownReadFailedError`          |
+| Concern             | Convention                              | Example                                        |
+| ------------------- | --------------------------------------- | ---------------------------------------------- |
+| URL paths           | lowercase kebab-case, no trailing slash | `/api/files`, `/health`                        |
+| API req/resp fields | camelCase                               | `contentRoot`, `lastModifiedAt`                |
+| Error codes         | SCREAMING_SNAKE_CASE                    | `PATH_TRAVERSAL`, `CONFIG_INVALID`             |
+| Log fields          | camelCase                               | `requestId`, `errCode`                         |
+| Env vars            | UPPER_SNAKE_CASE                        | `LOG_LEVEL`, `PORT`                            |
+| TS files            | snake_case (`src/ui` uses camelCase)    | `markdown_service.ts`, `ui/markdownService.ts` |
+| Deno source imports | relative (no aliases)                   | `../service/markdownService.ts`                |
+| Classes             | PascalCase                              | `MarkdownService`                              |
+| Interfaces (ports)  | PascalCase, no `I` prefix               | `FileStore`, `Logger`                          |
+| Sentinel errors     | PascalCase, `Error` suffix              | `MarkdownReadFailedError`                      |
 
 ---
 
 ## 12. Stack Snapshot (intentional)
 
-| Layer    | Choice                                              |
-| -------- | --------------------------------------------------- |
-| Runtime  | Deno                                                |
-| CLI      | Cliffy                                              |
-| HTTP     | Hono + Zod (no OpenAPI/Swagger in v1)               |
-| UI       | Static / light server UI (no Vite SPA in v1)        |
-| Errors   | Sentinel `AppError` + `await-to-js` `to()`          |
-| Logging  | Logger **port** (simple or pino adapter)            |
-| Config   | Cliffy flags + dotenv + zod merged config schema    |
-| Tests    | `Deno.test` (strong service coverage; 100% goal)    |
-| Database | **None**                                            |
-| ORM      | **None**                                            |
+| Layer    | Choice                                           |
+| -------- | ------------------------------------------------ |
+| Runtime  | Deno                                             |
+| CLI      | Cliffy                                           |
+| HTTP     | Hono + Zod (no OpenAPI/Swagger in v1)            |
+| UI       | Static / light server UI (no Vite SPA in v1)     |
+| Errors   | Sentinel `AppError` + `await-to-js` `to()`       |
+| Logging  | Logger **port** (simple or pino adapter)         |
+| Config   | Cliffy flags + dotenv + zod merged config schema |
+| Tests    | `Deno.test` (strong service coverage; 100% goal) |
+| Database | **None**                                         |
+| ORM      | **None**                                         |

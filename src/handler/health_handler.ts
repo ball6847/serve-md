@@ -1,5 +1,5 @@
-import type { ContentIndexService } from "../service/contentIndexService.ts";
-import type { FileStore } from "../ports/fileStore.ts";
+import type { ContentIndexService } from "../service/content_index_service.ts";
+import type { FileStore } from "../ports/file_store.ts";
 import type { Logger } from "../ports/logger.ts";
 import { NotReadyError } from "../domain/errors.ts";
 import { to } from "await-to-js";

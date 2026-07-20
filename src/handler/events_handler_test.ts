@@ -1,12 +1,12 @@
 import { assertEquals } from "jsr:@std/assert@^1";
 import { createApp } from "./app.ts";
-import { HealthHandler } from "./healthHandler.ts";
-import { FilesHandler } from "./filesHandler.ts";
-import { EventsHandler } from "./eventsHandler.ts";
-import { FakeFileStore } from "../adapter/fakeFileStore.ts";
-import { ContentIndexService } from "../service/contentIndexService.ts";
-import { ConsoleLogger } from "../adapter/consoleLogger.ts";
-import { WatchCoordinator } from "../service/watchCoordinator.ts";
+import { HealthHandler } from "./health_handler.ts";
+import { FilesHandler } from "./files_handler.ts";
+import { EventsHandler } from "./events_handler.ts";
+import { FakeFileStore } from "../adapter/fake_file_store.ts";
+import { ContentIndexService } from "../service/content_index_service.ts";
+import { ConsoleLogger } from "../adapter/console_logger.ts";
+import { WatchCoordinator } from "../service/watch_coordinator.ts";
 import type { Logger } from "../ports/logger.ts";
 
 function silentLogger(): Logger {

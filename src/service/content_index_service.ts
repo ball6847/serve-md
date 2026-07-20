@@ -1,8 +1,8 @@
 import { to } from "await-to-js";
 import * as posix from "@std/path/posix";
-import type { ContentFile, ContentTreeNode } from "../domain/contentFile.ts";
+import type { ContentFile, ContentTreeNode } from "../domain/content_file.ts";
 import { formatLabel, inferKind } from "./humanize.ts";
-import type { DirEntry, FileStat, FileStore } from "../ports/fileStore.ts";
+import type { DirEntry, FileStat, FileStore } from "../ports/file_store.ts";
 import { NotFoundError, ReadFailedError } from "../domain/errors.ts";
 
 /**
