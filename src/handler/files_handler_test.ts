@@ -9,6 +9,7 @@ import { HealthHandler } from "./health_handler.ts";
 import { EventsHandler } from "./events_handler.ts";
 import { Hono } from "hono";
 import type { Logger } from "../ports/logger.ts";
+import { FakeStaticAssetStore } from "../adapter/fake_static_asset_store.ts";
 
 function silentLogger(): Logger {
   return new ConsoleLogger({ level: "error", writer: () => {} });
@@ -30,6 +31,7 @@ function buildApp(opts?: { index?: ContentIndexService; store?: FakeFileStore })
     files,
     events,
     logger,
+    staticAssets: new FakeStaticAssetStore({ brand: "test" }),
     meta: () => ({ watch: false }),
     brand: "test",
   });

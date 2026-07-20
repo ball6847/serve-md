@@ -1,5 +1,4 @@
 import type { ContentFile } from "../domain/content_file.ts";
-import { inferKind } from "../service/humanize.ts";
 import { MarkdownRenderService } from "../service/markdown_render_service.ts";
 import type { ContentIndexService } from "../service/content_index_service.ts";
 import type { FileStore } from "../ports/file_store.ts";
@@ -181,11 +180,7 @@ export function contentTypeFor(pathOrName: string): string {
   return "application/octet-stream";
 }
 
-// Convenience re-export so handlers don't need to import the infer function directly.
-export { inferKind };
-
-// Suppress unused import lint — ReadFailedError is re-exported for callers
-// constructing AppError responses.
+// Re-export ReadFailedError for callers constructing AppError responses.
 export { ReadFailedError };
 
 function largeFile(size: number): boolean {

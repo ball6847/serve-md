@@ -8,6 +8,7 @@ import { ContentIndexService } from "../service/content_index_service.ts";
 import { ConsoleLogger } from "../adapter/console_logger.ts";
 import { WatchCoordinator } from "../service/watch_coordinator.ts";
 import type { Logger } from "../ports/logger.ts";
+import { FakeStaticAssetStore } from "../adapter/fake_static_asset_store.ts";
 
 function silentLogger(): Logger {
   return new ConsoleLogger({ level: "error", writer: () => {} });
@@ -27,6 +28,7 @@ Deno.test("GET /api/events returns 404 when watch is disabled", async () => {
     files,
     events,
     logger,
+    staticAssets: new FakeStaticAssetStore({ brand: "test" }),
     meta: () => ({ watch: false }),
     brand: "test",
   });
@@ -49,6 +51,7 @@ Deno.test("GET /api/events opens SSE stream and broadcasts on watcher reload", a
     files,
     events,
     logger,
+    staticAssets: new FakeStaticAssetStore({ brand: "test" }),
     meta: () => ({ watch: true }),
     brand: "test",
   });
@@ -100,6 +103,7 @@ Deno.test("GET /api/meta returns watch status", async () => {
     files,
     events,
     logger,
+    staticAssets: new FakeStaticAssetStore({ brand: "test" }),
     meta: () => ({ watch: true }),
     brand: "test",
   });

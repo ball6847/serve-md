@@ -3,8 +3,9 @@ import { HealthHandler } from "./health_handler.ts";
 import { FilesHandler } from "./files_handler.ts";
 import { EventsHandler } from "./events_handler.ts";
 import { errorEnvelope, statusFor } from "./error_mapper.ts";
-import { isAppError, NotFoundError, PathTraversalError } from "../domain/errors.ts";
+import { isAppError, PathTraversalError } from "../domain/errors.ts";
 import type { Logger } from "../ports/logger.ts";
+import type { StaticAssetStore } from "../ports/static_asset_store.ts";
 import { PathQuery } from "../api/schemas/files.ts";
 import { to } from "await-to-js";
 
@@ -13,6 +14,7 @@ export interface AppDeps {
   files: FilesHandler;
   events: EventsHandler;
   logger: Logger;
+  staticAssets: StaticAssetStore;
   /** Server-side meta exposed to UI (e.g. watch status). */
   meta: () => { watch: boolean };
   /** Brand name shown in the topbar (e.g. project directory name). */
@@ -32,10 +34,8 @@ export function createApp(deps: AppDeps): Hono {
   app.get("/api/meta", () => Response.json({ data: deps.meta() }));
 
   // Serve index.html for the root
-  app.get("/", () => {
-    const brand = escapeHtml(deps.brand);
-    let html = Deno.readTextFileSync(new URL("../ui/index.html", import.meta.url));
-    html = html.replace(/\{\{ brand \}\}/g, brand);
+  app.get("/", async () => {
+    const html = await deps.staticAssets.readIndex();
     return new Response(html, {
       headers: { "content-type": "text/html; charset=utf-8" },
     });
@@ -44,26 +44,8 @@ export function createApp(deps: AppDeps): Hono {
   // Serve /ui/* static files (CSS, JS)
   app.get("/ui/:filename", async (c) => {
     const filename = c.req.param("filename");
-    if (filename.includes("/") || filename.includes("..")) {
-      throw new PathTraversalError("invalid static path");
-    }
-    if (!filename.endsWith(".css") && !filename.endsWith(".js")) {
-      throw new NotFoundError(`ui file not allowed: ${filename}`);
-    }
-    try {
-      const content = await Deno.readTextFile(
-        new URL(`../ui/${filename}`, import.meta.url),
-      );
-      const ct = filename.endsWith(".css")
-        ? "text/css; charset=utf-8"
-        : "application/javascript; charset=utf-8";
-      return new Response(content, { headers: { "content-type": ct } });
-    } catch (e) {
-      if (e instanceof Deno.errors.NotFound) {
-        throw new NotFoundError(`ui file not found: ${filename}`);
-      }
-      throw e;
-    }
+    const asset = await deps.staticAssets.readAsset(filename);
+    return new Response(asset.content, { headers: { "content-type": asset.contentType } });
   });
 
   // JSON API
@@ -116,13 +98,4 @@ export function createApp(deps: AppDeps): Hono {
   });
 
   return app;
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }

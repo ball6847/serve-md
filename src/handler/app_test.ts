@@ -9,6 +9,7 @@ import { ConsoleLogger } from "../adapter/console_logger.ts";
 import { NotFoundError, PathTraversalError } from "../domain/errors.ts";
 import { Hono } from "hono";
 import type { Logger } from "../ports/logger.ts";
+import { FakeStaticAssetStore } from "../adapter/fake_static_asset_store.ts";
 
 function silentLogger(): Logger {
   return new ConsoleLogger({ level: "error", writer: () => {} });
@@ -45,6 +46,7 @@ async function build(opts?: { throwOnReady?: Error }): Promise<Built> {
     files,
     events,
     logger,
+    staticAssets: new FakeStaticAssetStore({ brand: "test" }),
     meta: () => ({ watch: false }),
     brand: "test",
   });

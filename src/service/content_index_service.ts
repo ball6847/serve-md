@@ -58,11 +58,11 @@ export class ContentIndexService {
       return readErr;
     }
     this.#lastError = null;
-    this.#rebuild(entries);
+    await this.#rebuild(entries);
     return null;
   }
 
-  #rebuild(entries: DirEntry[]): void {
+  async #rebuild(entries: DirEntry[]): Promise<void> {
     const files: ContentFile[] = [];
     for (const e of entries) {
       const filename = e.relativePath.slice(e.relativePath.lastIndexOf("/") + 1);
@@ -79,18 +79,16 @@ export class ContentIndexService {
         mtime: null,
       });
     }
-    // Hydrate stat for size/mtime lazily is overkill; do a lightweight pass
-    // but tolerate failure (size may stay 0).
     files.sort((
       a,
       b,
     ) => (a.relativePath < b.relativePath ? -1 : a.relativePath > b.relativePath ? 1 : 0));
+    // Hydrate stat for size/mtime before publishing the index so listFiles()
+    // returns fully populated ContentFile objects.
+    await this.#hydrateStats(files);
     this.#files = files;
     this.#byPath = new Map(files.map((f) => [f.relativePath, f]));
     this.#tree = this.#buildTree(files);
-    // Best-effort size/mtime fill (fire-and-forget; not awaited here to keep
-    // refresh fast). The handler can request stat on demand.
-    void this.#hydrateStats(files);
   }
 
   async #hydrateStats(files: ContentFile[]): Promise<void> {

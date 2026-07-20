@@ -6,6 +6,7 @@ import type { AppConfig } from "../config/schema.ts";
 import { ConfigInvalidError, isAppError } from "../domain/errors.ts";
 import { ConsoleLogger } from "../adapter/console_logger.ts";
 import { DenoFileStore } from "../adapter/deno_file_store.ts";
+import { DenoStaticAssetStore } from "../adapter/deno_static_asset_store.ts";
 import { ContentIndexService } from "../service/content_index_service.ts";
 import { HealthHandler } from "../handler/health_handler.ts";
 import { FilesHandler } from "../handler/files_handler.ts";
@@ -96,11 +97,15 @@ export async function main(argv: string[]): Promise<number> {
         await watcher.start(config.contentRoot);
       }
       const events = new EventsHandler({ watcher, logger });
+      const staticAssets = new DenoStaticAssetStore(
+        config.contentRoot.split("/").pop() || "serve-md",
+      );
       const app = createApp({
         health,
         files,
         events,
         logger,
+        staticAssets,
         meta: () => ({ watch: Boolean(watcher) }),
         brand: config.contentRoot.split("/").pop() || "serve-md",
       });
