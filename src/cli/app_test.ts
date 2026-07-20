@@ -1,9 +1,9 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@^1";
-import { createApp } from "./app.ts";
-import { HealthHandler } from "./health_handler.ts";
-import { FilesHandler } from "./files_handler.ts";
-import { EventsHandler } from "./events_handler.ts";
-import { errorEnvelope, statusFor } from "./error_mapper.ts";
+import { createApp } from "./main.ts";
+import { HealthHandler } from "../handler/health_handler.ts";
+import { FilesHandler } from "../handler/files_handler.ts";
+import { EventsHandler } from "../handler/events_handler.ts";
+import { errorEnvelope, statusFor } from "../handler/error_mapper.ts";
 import { FakeFileStore } from "../adapter/fake_file_store.ts";
 import { ContentIndexService } from "../service/content_index_service.ts";
 import { ConsoleLogger } from "../adapter/console_logger.ts";

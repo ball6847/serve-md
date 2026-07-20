@@ -4,7 +4,7 @@ import { FakeFileStore } from "../adapter/fake_file_store.ts";
 import { ContentIndexService } from "../service/content_index_service.ts";
 import { ConsoleLogger } from "../adapter/console_logger.ts";
 import { NotFoundError, PathTraversalError, ReadFailedError } from "../domain/errors.ts";
-import { createApp } from "./app.ts";
+import { createApp } from "../cli/main.ts";
 import { HealthHandler } from "./health_handler.ts";
 import { EventsHandler } from "./events_handler.ts";
 import { Hono } from "hono";
