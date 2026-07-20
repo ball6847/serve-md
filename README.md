@@ -16,6 +16,20 @@ authentication.
 No Node.js, no npm install step, no build step. Everything is resolved at
 runtime via the import map in `deno.json`.
 
+## Install
+
+```bash
+deno install -g -n serve-md --allow-read --allow-net --allow-env --allow-run jsr:@ball6847/serve-md
+```
+
+Once installed, `serve-md` is on your `PATH` and can be run from any directory:
+
+```bash
+serve-md
+# or with flags
+serve-md --network --watch
+```
+
 ## Quick start
 
 ```bash
