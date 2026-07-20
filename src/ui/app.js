@@ -37,7 +37,7 @@ function isSep(ch) {
 
 // ---------- App state ----------
 const state = {
-  files: [], // [{relativePath, basename, humanizedLabel, kind, ...}]
+  files: [], // [{relativePath, basename, kind, ...}]
   tree: null, // tree root
   selectedPath: null, // currently open file
   theme: localStorage.getItem("serve-md-theme") || "light",

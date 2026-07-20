@@ -65,7 +65,6 @@ export class FilesHandler {
           data: {
             relativePath: "README",
             basename: "README",
-            humanizedLabel: "Readme",
             kind: "plain",
             size: stat.size,
             mtime: stat.mtime,
@@ -119,7 +118,6 @@ export class FilesHandler {
       data: {
         relativePath: known.relativePath,
         basename: known.basename,
-        humanizedLabel: known.humanizedLabel,
         kind: known.kind,
         size: stat.size,
         mtime: stat.mtime,

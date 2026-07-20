@@ -61,24 +61,6 @@ Deno.test("ContentIndexService: node_modules/dist/build/vendor/target excluded",
   assertEquals(paths, ["src/main.md"]);
 });
 
-Deno.test("ContentIndexService: humanized label", async () => {
-  const store = makeStore();
-  store.add("docs/plans/my-plan.md", "");
-  const svc = new ContentIndexService(store, { dotWhitelist: [] });
-  await svc.refresh();
-  const f = svc.listFiles()[0];
-  assertEquals(f.humanizedLabel, "docs/plans › My Plan");
-});
-
-Deno.test("ContentIndexService: README.md at root humanized to Readme", async () => {
-  const store = makeStore();
-  store.add("README.md", "");
-  const svc = new ContentIndexService(store, { dotWhitelist: [] });
-  await svc.refresh();
-  const f = svc.listFiles()[0];
-  assertEquals(f.humanizedLabel, "Readme");
-});
-
 Deno.test("ContentIndexService: tree prunes dirs without content", async () => {
   const store = makeStore();
   store.add("src/main.md", "");

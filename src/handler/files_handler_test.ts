@@ -59,18 +59,6 @@ Deno.test("GET /api/files returns only content files (md/html/htm)", async () =>
   void app;
 });
 
-Deno.test("GET /api/files includes humanizedLabel", async () => {
-  const store = new FakeFileStore("/root");
-  store.add("docs/plans/my-plan.md", "x");
-  const index = new ContentIndexService(store, { dotWhitelist: [] });
-  await index.refresh();
-  const { app } = buildApp({ index, store });
-  const res = await app.request("http://local/api/files");
-  const body = await res.json();
-  const f = (body.data as Array<{ humanizedLabel: string }>)[0];
-  assertEquals(f.humanizedLabel, "docs/plans › My Plan");
-});
-
 Deno.test("GET /api/tree returns nested tree", async () => {
   const store = new FakeFileStore("/root");
   store.add("docs/a.md", "x");

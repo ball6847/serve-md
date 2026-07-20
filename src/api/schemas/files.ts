@@ -13,7 +13,6 @@ export const PathQuery = z.object({
 export const ContentFileSchema: z.ZodType<ContentFile> = z.object({
   relativePath: z.string(),
   basename: z.string(),
-  humanizedLabel: z.string(),
   kind: z.enum(["markdown", "html", "plain"]),
   size: z.number(),
   mtime: z.union([z.date(), z.null()]),
@@ -28,7 +27,6 @@ export const ContentTreeNodeSchema: z.ZodType<ContentTreeNode> = z.lazy(() =>
     name: z.string(),
     relativePath: z.string(),
     type: z.enum(["dir", "file"]),
-    humanizedLabel: z.string().optional(),
     kind: z.enum(["markdown", "html", "plain"]).optional(),
     children: z.array(ContentTreeNodeSchema).optional(),
   }) as unknown as z.ZodType<ContentTreeNode>

@@ -1,7 +1,6 @@
 import { to } from "await-to-js";
 import * as posix from "@std/path/posix";
 import type { ContentFile, ContentTreeNode } from "../domain/content_file.ts";
-import { formatLabel, inferKind } from "./humanize.ts";
 import type { DirEntry, FileStat, FileStore } from "../ports/file_store.ts";
 import { NotFoundError, ReadFailedError } from "../domain/errors.ts";
 
@@ -69,12 +68,13 @@ export class ContentIndexService {
       const ext = extOf(filename);
       if (!CONTENT_EXTS.has(ext.toLowerCase())) continue;
       if (this.#isExcluded(e.relativePath)) continue;
-      const kind = inferKind(filename);
+      const kind = (ext.toLowerCase() === ".html" || ext.toLowerCase() === ".htm")
+        ? "html"
+        : "markdown";
       files.push({
         relativePath: e.relativePath,
         basename: filename,
-        humanizedLabel: formatLabel(e.relativePath),
-        kind: kind === "plain" ? "markdown" : kind, // filtered by ext already; never plain here
+        kind,
         size: 0,
         mtime: null,
       });
@@ -197,7 +197,6 @@ export class ContentIndexService {
         name: f.basename,
         relativePath: f.relativePath,
         type: "file",
-        humanizedLabel: f.humanizedLabel,
         kind: f.kind,
       };
       (parent.children as ContentTreeNode[]).push(fileNode);
