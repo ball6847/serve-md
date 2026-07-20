@@ -1,0 +1,24 @@
+# Environment
+.env
+
+# Deno
+deno_dir/
+
+# Build / coverage
+coverage/
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Agent context (not part of source)
+.context/
+.pi/
