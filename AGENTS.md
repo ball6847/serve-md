@@ -49,7 +49,7 @@ Rules:
 ├──────────────────────────────────────────────────────────┤
 │  Handler        (HTTP only — Hono + Zod validation)        │  request/response, status mapping
 ├──────────────────────────────────────────────────────────┤
-│  Service        (use-case orchestration)                  │  business rules, retries
+│  Service        (use-case orchestration)                  │  wiring, retries, error mapping
 ├──────────────────────────────────────────────────────────┤
 │  Adapter        (ports: filesystem, logger, etc.)         │  external IO behind an interface
 └──────────────────────────────────────────────────────────┘
@@ -58,7 +58,7 @@ Rules:
 Layering rules (enforced by **review only** — see §10):
 
 - **Handler** → may import Service only.
-- **Service** → may import Adapter (interface) + domain types. **Must not** import Hono or any I/O SDK/driver.
+- **Service** → may import Adapter (interface) + domain types. **Must not** import Hono or any I/O SDK/driver. **Must not** contain pure business logic — that belongs in `domain/`. Services orchestrate: they call adapters, delegate decisions to domain objects, and map results to sentinel errors.
 - **Adapter** → implements a port interface; wraps filesystem, subprocess, or external SDK. No business logic.
 - **Ports** (interfaces) live in a `ports/` package with **zero runtime dependencies**. Services depend on ports, not on concrete adapters.
 - **Domain types** (entities, value objects, enums) live in `domain/` and are imported by any layer but depend on nothing.
@@ -183,6 +183,7 @@ Layering rules (enforced by **review only** — see §10):
 - There is **no automated lint rule or tool** that forbids cross-layer imports in v1.
 - Layer boundaries (§3) are enforced by **code review only**. The reviewer MUST reject:
   - a Service importing Hono or an external SDK/subprocess/filesystem shim,
+  - pure business logic living in a Service instead of `domain/`,
   - a Handler importing an Adapter directly,
   - an Adapter importing a Service,
   - any use of a concrete adapter where a port interface should be used,
