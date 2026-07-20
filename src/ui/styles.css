@@ -553,6 +553,13 @@ body {
   background: var(--hover);
   border-left-color: var(--accent);
 }
+.toc-nav a.active,
+.toc-nav a[aria-current="location"] {
+  border-left-color: var(--accent);
+  font-weight: 500;
+  color: var(--accent);
+  background: var(--selected);
+}
 /* Indent levels relative to minimum heading level in the document */
 .toc-nav a[data-indent="1"] {
   padding-left: 28px;

@@ -13,7 +13,7 @@
 - **Core Features**:
   1. Recursive scan of content root (default: process CWD) for content files only (`.md`, `.html`, `.htm`).
   2. Two navigation modes (toggle): **Search** (fzf-style filename fuzzy search) and **Browse** (directory tree/list of content-only paths).
-  3. Markdown rendering (best-effort): GFM-style content, syntax highlighting, images, tables, Mermaid, footnotes, heading anchors, table of contents.
+  3. Markdown rendering (best-effort): GFM-style content, syntax highlighting, images, tables, Mermaid, footnotes, heading anchors, table of contents with **scroll-spy active section** highlighting in the TOC sidebar.
   4. HTML rendering: app chrome (navigation) remains visible; document body loads in an **iframe** with scripts and relative assets allowed (owner-trusted files).
   5. Default open target: `README.md` → `readme.md` → `README`; otherwise empty “pick a file” state.
   6. Light / dark theme.
@@ -69,7 +69,7 @@
    - Else if `README` exists (extensionless file named exactly `README`) → open it **only if** it is treated as a readable text artifact; if product limits nav to md/html/htm only, then **README without extension is out of nav list** unless implementation special-cases default open. **Product decision**: default-open candidates are `README.md`, then `readme.md` only among scanned types; bare `README` is attempted as default-open if present on disk as a file, but need not appear in the filtered file index unless it matches allowed extensions. Prefer simpler rule: **default-open only `README.md` then `readme.md`; if neither, “pick a file”.** Bare `README` from user answer is interpreted as third priority only when the file exists; if it has no allowed extension it may still be opened as plain/markdown best-effort for default only—**final simple rule adopted below**.
 5. Search mode: fzf-style fuzzy match against relative paths / basenames; keyboard-friendly list; select opens file.
 6. Browse mode: tree or hierarchical list of folders that contain or lead to content files; select opens file.
-7. Markdown path: render in content panel with TOC / anchors as available.
+7. Markdown path: render in content panel with TOC / anchors as available. As the user scrolls the Markdown content, the TOC sidebar **scroll-spy** marks the heading currently in view as active (see **TOC scroll-spy** under Detailed Requirements).
 8. HTML path: keep shell; body in iframe; scripts and relative assets allowed.
 9. Errors: in-app panels; process stays up. Mermaid failures are inline error blocks.
 
@@ -79,6 +79,21 @@
 2. `readme.md` at content root
 3. `README` at content root (extensionless; open as plain text or light Markdown best-effort)
 4. Empty state: “Pick a file”
+
+**TOC panel & scroll-spy (authoritative)** — Markdown documents only:
+
+| Concern | Specification |
+| ------- | ------------- |
+| Visibility | Right-rail “On this page” TOC when the open Markdown file has at least one heading with an id; hide when empty or when the open file is HTML / empty state. |
+| Entries | Built from server-provided `toc` on `GET /api/file/<rel>`: `{ id, text, level }` per heading (already produced by the render pipeline). Client does not re-parse headings for the list. |
+| Click | Clicking a TOC entry smooth-scrolls the **content scroll container** to that heading and updates `location.hash` (file path in the address bar preserved). |
+| **Scroll-spy (active section)** | While the user scrolls the Markdown content area, **exactly one** TOC entry is marked active at a time: the heading that is the current reading position (typically the last heading whose top has scrolled at or above a fixed offset near the top of the content viewport, or the first visible heading when above the first section). |
+| Active styling | Active TOC link is visually distinct (e.g. accent border / stronger weight / background)—must be theme-aware (light and dark). |
+| Sync on load | If the URL has a `#heading-id` fragment on open, scroll to that heading and set the matching TOC entry active. |
+| Observer lifecycle | Attach scroll / `IntersectionObserver` listeners when TOC is shown; disconnect and clear active state on `hideToc`, file change, or navigation away. No leaked observers across file opens. |
+| Narrow viewports | If the TOC rail is hidden (responsive breakpoint), scroll-spy need not run (no visible target). |
+| Scope | Client-only enhancement; no new API fields required beyond existing `toc` + heading `id`s in rendered HTML. |
+| Non-goals (v1.x) | Auto-scroll the TOC rail to keep the active item visible is **nice-to-have**, not required. Nested expand/collapse of TOC levels is out of scope. HTML iframe documents do not get app TOC/scroll-spy. |
 
 #### Data Requirements
 
@@ -113,7 +128,7 @@
   - **Index / scan service**: build content-only tree and flat list for search.
   - **Render service**: Markdown → safe HTML pipeline (highlight, tables, mermaid placeholders, footnotes); HTML mode metadata for iframe URL.
   - **HTTP API**: health/ready, file list/tree, file content/raw, rendered markdown endpoint or server-driven page, static assets for UI and content-relative assets.
-  - **Web UI**: shell with Search/Browse toggle, theme, content panel / iframe, TOC as applicable, live-reload client hook when watch enabled.
+  - **Web UI**: shell with Search/Browse toggle, theme, content panel / iframe, TOC sidebar with scroll-spy active section (Markdown only), live-reload client hook when watch enabled.
 - **Data Storage**: None durable beyond filesystem of the user’s project.
 - **Interface Design** (authoritative URI scheme — path-style for file identity):
 
@@ -194,6 +209,9 @@
 - [ ] Mode toggle switches between Search and Browse without losing the overall shell.
 - [ ] Default open order: `README.md` → `readme.md` → `README` → empty “pick a file”.
 - [ ] Selecting a Markdown file renders with best-effort support for syntax highlight, images, tables, Mermaid, footnotes, heading anchors, and TOC.
+- [ ] When a Markdown file has headings, the TOC sidebar lists them; clicking an entry scrolls to that heading and updates the URL hash.
+- [ ] **TOC scroll-spy**: as the user scrolls Markdown content, the TOC entry for the current section is marked active (exactly one active entry; theme-aware styling); on open with `#id`, the matching entry is active after scroll-to-target.
+- [ ] Scroll-spy observers/listeners are cleaned up on file change / TOC hide (no leaks across navigations).
 - [ ] Selecting an HTML file keeps navigation chrome visible and shows document content in an iframe; scripts and relative assets work for same-tree files.
 - [ ] Light and dark themes are available and persist for the session (persistence across reloads preferred if trivial).
 - [ ] Default listen address is `127.0.0.1:8787`; `--network` listens on `0.0.0.0`; port configurable.
@@ -257,7 +275,7 @@
 **Goal**: Beautiful Markdown + HTML iframe shell with navigation modes.
 
 - [ ] Markdown pipeline (highlight, tables, images, mermaid, footnotes, anchors, TOC).
-- [ ] UI: Search (fuzzy) | Browse toggle, theme, content panel, 2MB warning, error panels.
+- [ ] UI: Search (fuzzy) | Browse toggle, theme, content panel, TOC sidebar + scroll-spy active section, 2MB warning, error panels.
 - [ ] HTML iframe integration and relative asset serving.
 - [ ] Optional watch + client reload when `-w` set.
 
@@ -291,7 +309,7 @@ This revision updates the v1.0 PRD based on implementation findings and product 
 | **Humanized labels** | **Removed** | The humanized label feature (`docs/plans/my-plan.md` → `docs/plans › My Plan`) was removed from the implementation. Raw filenames are displayed instead. This simplifies the index service and UI, and users can rename files directly in their editor if they want different display names. |
 | **Callouts** | **Removed from scope** | GFM-style callouts (`> [!NOTE]`, etc.) will not be supported in v1. They are not part of the core Markdown reading experience and add complexity to the render pipeline. |
 | **Math rendering** | **Removed from scope** | KaTeX / MathJax integration will not be supported in v1. Math rendering adds a significant client-side dependency and is not required for the core AI-planning-artifact use case. |
-| **TOC** | **Planned** | Table of contents rendering is retained as a planned feature. The server already computes TOC entries; the UI panel to display them will be added in a future update. |
+| **TOC** | **Implemented (panel); scroll-spy planned** | Server computes `toc` entries; UI right-rail “On this page” panel lists headings and click-to-scroll. **Scroll-spy** (auto-mark active TOC entry from content scroll position) is specified under **TOC panel & scroll-spy** and is the next TOC enhancement. |
 | **File URI shape** | **Path-style everywhere (locked)** | Browser URL for the open document is `/{relative-path}` (e.g. `http://localhost:8787/.context/plans/…/PLAN.md`), **not** `/?file=…`. JSON API is `GET /api/file/<relative-path>`; raw is `GET /content/<relative-path>`. No query-string file identity. Full refresh of a path serves the reader shell (SPA fallback), not raw bytes. Reserved prefixes: `/api`, `/content`, `/ui`, `/health`, `/ready`. |
 
 ### Beyond PRD Features (Implemented)
@@ -312,6 +330,7 @@ The following features were implemented during v1 development but were not speci
 | ----- | --------------- |
 | 4 (v1.1) | **Removed**: humanized labels, callouts, math rendering. **Retained as planned**: TOC. **Documented**: beyond-PRD features that were implemented (frontmatter display, markdown deep-linking, mermaid pan/zoom+fullscreen, `/api/meta`, `.markdown` extension). |
 | 5 (v1.1) | **Locked**: browser URL is `/{relative-path}` (not `/?file=`); JSON `GET /api/file/<relative-path>`; raw `GET /content/<relative-path>`; SPA shell fallback for non-reserved paths; reserved prefixes documented. |
+| 6 (v1.1) | **TOC scroll-spy specified**: TOC panel status updated (panel implemented; scroll-spy planned). Active section = exactly one TOC entry from content scroll position; client-only; hash on open; observer cleanup; no new API. |
 
 ---
 
@@ -324,11 +343,12 @@ The following features were implemented during v1 development but were not speci
 | 3     | HTML scripts **allowed** (owner-trusted); bind **127.0.0.1** default, **`--network`** → all interfaces; port **8787**; exclude **all dot paths** by default, **env whitelist** for specific dot dirs; extensions **md / html / htm**; watch via **`--watch` / `-w`**; default open **README.md → readme.md → README → pick a file**; non-crash errors; **inline** mermaid/math errors; **warn** if file &gt; 2MB. |
 | 4     | v1.1: removed humanized labels, callouts, math; TOC planned; documented beyond-PRD features.                                                                                                                                                                                                                                                                                                                      |
 | 5     | **Browser + API path-style**: open file URL is `/{rel}` (e.g. `/.context/plans/…/PLAN.md`), not `/?file=`; API `/api/file/<rel>`; raw `/content/<rel>`; no query file identity.                                                                                                                                                                                                                                      |
+| 6     | **TOC scroll-spy**: auto-mark active TOC section while scrolling Markdown content; acceptance criteria + observer lifecycle; TOC panel marked implemented, scroll-spy next.                                                                                                                                                                                                                                        |
 
 ---
 
 **Document Version**: 1.1  
 **Created**: 2026-07-19  
 **Revised**: 2026-07-20  
-**Clarification Rounds**: 5  
+**Clarification Rounds**: 6  
 **Quality Score**: 95/100

@@ -88,11 +88,122 @@ function showToc(entries) {
     tocNav.appendChild(a);
   }
   tocPanel.classList.remove("hidden");
+  // Start scroll-spy for these heading ids
+  startTocScrollSpy(entries.map((e) => e.id));
 }
 
 function hideToc() {
+  stopTocScrollSpy();
   tocNav.innerHTML = "";
   tocPanel.classList.add("hidden");
+}
+
+// ---------- TOC scroll-spy ----------
+let tocScrollSpyActive = false;
+let tocHeadingIds = [];
+let tocScrollHandler = null;
+
+function setTocActive(id) {
+  const links = tocNav.querySelectorAll("a");
+  links.forEach((link) => {
+    link.classList.remove("active");
+    link.removeAttribute("aria-current");
+  });
+  if (!id) return;
+  const activeLink = tocNav.querySelector(`a[href="#${CSS.escape(id)}"]`);
+  if (activeLink) {
+    activeLink.classList.add("active");
+    activeLink.setAttribute("aria-current", "location");
+  }
+}
+
+function startTocScrollSpy(headingIds) {
+  stopTocScrollSpy();
+  tocHeadingIds = headingIds;
+
+  // Don't run spy if TOC panel is not displayed (hidden class or narrow viewport)
+  if (
+    tocPanel.classList.contains("hidden") ||
+    globalThis.getComputedStyle(tocPanel).display === "none"
+  ) {
+    return;
+  }
+
+  const contentSection = document.querySelector("section.content");
+  if (!contentSection) return;
+
+  const headingElements = headingIds
+    .map((id) => document.getElementById(id))
+    .filter((el) => el !== null);
+
+  if (headingElements.length === 0) return;
+
+  tocScrollSpyActive = true;
+
+  // Throttled scroll listener using requestAnimationFrame
+  let ticking = false;
+  tocScrollHandler = () => {
+    if (!ticking) {
+      requestAnimationFrame(() => {
+        updateTocActiveFromScroll();
+        ticking = false;
+      });
+      ticking = true;
+    }
+  };
+
+  contentSection.addEventListener("scroll", tocScrollHandler, { passive: true });
+
+  // Initial update after layout settles (handles hash-on-open)
+  requestAnimationFrame(() => {
+    updateTocActiveFromScroll();
+  });
+}
+
+function stopTocScrollSpy() {
+  if (tocScrollHandler) {
+    const contentSection = document.querySelector("section.content");
+    if (contentSection) {
+      contentSection.removeEventListener("scroll", tocScrollHandler);
+    }
+    tocScrollHandler = null;
+  }
+  tocScrollSpyActive = false;
+  tocHeadingIds = [];
+  setTocActive(null);
+}
+
+function updateTocActiveFromScroll() {
+  if (!tocScrollSpyActive || tocHeadingIds.length === 0) return;
+
+  const contentSection = document.querySelector("section.content");
+  if (!contentSection) return;
+
+  const scrollTop = contentSection.scrollTop;
+  const offset = 48; // Offset from top of content area (topbar height)
+  let currentId = null;
+
+  for (const id of tocHeadingIds) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    const rect = el.getBoundingClientRect();
+    const contentRect = contentSection.getBoundingClientRect();
+    // Relative position of heading top within content section
+    const headingTop = rect.top - contentRect.top + scrollTop;
+
+    if (headingTop <= scrollTop + offset) {
+      currentId = id;
+    } else {
+      break;
+    }
+  }
+
+  // If none found (scrolled above first heading), use first heading
+  if (currentId === null && tocHeadingIds.length > 0) {
+    currentId = tocHeadingIds[0];
+  }
+
+  setTocActive(currentId);
 }
 
 // ---------- App state ----------
