@@ -1,6 +1,6 @@
 # serve-md
 
-A local, single-process **Glow-for-web** Markdown/HTML reader. Scans the
+A local, single-process Markdown/HTML reader. Scans the
 current working directory (or a chosen root) for `.md`, `.html`, and `.htm`
 files and serves them in a clean browser UI with no source-code noise and no
 authentication.
@@ -34,23 +34,21 @@ directory. It will open `README.md` (or `readme.md`, or extensionless
 deno task serve --help
 ```
 
-| Flag | Description | Default |
-| --- | --- | --- |
-| `--port <n>` | Port to listen on | `8787` (env `PORT`) |
-| `--network` | Bind on all interfaces (`0.0.0.0`) — required for Tailscale | `127.0.0.1` |
-| `-w`, `--watch` | Watch content root for changes and notify the UI via SSE | off |
-| `--root <path>` | Content root directory | cwd |
-| `--open` | Open browser automatically on startup | off |
+| Flag            | Description                                                 | Default             |
+| --------------- | ----------------------------------------------------------- | ------------------- |
+| `--port <n>`    | Port to listen on                                           | `8787` (env `PORT`) |
+| `--network`     | Bind on all interfaces (`0.0.0.0`) — required for Tailscale | `127.0.0.1`         |
+| `-w`, `--watch` | Watch content root for changes and notify the UI via SSE    | off                 |
+| `--root <path>` | Content root directory                                      | cwd                 |
+| `--open`        | Open browser automatically on startup                       | off                 |
 
 ## Environment variables
 
-| Var | Default | Description |
-| --- | --- | --- |
-| `PORT` | `8787` | Port to listen on (overridden by `--port`) |
-| `LOG_LEVEL` | `info` | One of `debug`, `info`, `warn`, `error` |
-| `SERVE_MD_DOT_WHITELIST` | _(empty)_ | Comma-separated list of dot-directory basenames to include (e.g. `.context,.notes`). All other dot paths are excluded. |
-
-A `.env.example` is provided at the repo root.
+| Var                      | Default   | Description                                                                                                                       |
+| ------------------------ | --------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                   | `8787`    | Port to listen on (overridden by `--port`)                                                                                        |
+| `LOG_LEVEL`              | `info`    | One of `debug`, `info`, `warn`, `error`                                                                                           |
+| `SERVE_MD_DOT_WHITELIST` | _(empty)_ | Comma-separated list of dot-directory basenames to include (e.g. `.context,.notes`). All other dot paths are excluded by default. |
 
 ## What gets indexed
 
@@ -80,33 +78,33 @@ under the served root. HTML files are loaded into iframes with
 
 ## Endpoints
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/` | Reader UI (HTML) |
-| `GET` | `/<relative-path>` | Reader UI with file opened (SPA fallback) |
-| `GET` | `/ui/styles.css` | Reader CSS |
-| `GET` | `/ui/app.js` | Reader JS |
-| `GET` | `/health` | Liveness — always 200 |
-| `GET` | `/ready` | Readiness — 200 if content root readable, else 503 |
-| `GET` | `/api/meta` | `{ data: { watch: boolean } }` |
-| `GET` | `/api/files` | `{ data: ContentFile[] }` |
-| `GET` | `/api/tree` | `{ data: ContentTreeNode }` |
-| `GET` | `/api/default-file` | `{ data: { path: string \| null } }` |
-| `GET` | `/api/file/<rel>` | Metadata + (for md) rendered `html`, `toc`, `warnings` |
-| `GET` | `/content/<rel>` | Raw bytes for iframes and relative assets |
-| `GET` | `/api/events` | SSE stream of `event: reload` when watch is enabled |
+| Method | Path                | Purpose                                                |
+| ------ | ------------------- | ------------------------------------------------------ |
+| `GET`  | `/`                 | Reader UI (HTML)                                       |
+| `GET`  | `/<relative-path>`  | Reader UI with file opened (SPA fallback)              |
+| `GET`  | `/ui/styles.css`    | Reader CSS                                             |
+| `GET`  | `/ui/app.js`        | Reader JS                                              |
+| `GET`  | `/health`           | Liveness — always 200                                  |
+| `GET`  | `/ready`            | Readiness — 200 if content root readable, else 503     |
+| `GET`  | `/api/meta`         | `{ data: { watch: boolean } }`                         |
+| `GET`  | `/api/files`        | `{ data: ContentFile[] }`                              |
+| `GET`  | `/api/tree`         | `{ data: ContentTreeNode }`                            |
+| `GET`  | `/api/default-file` | `{ data: { path: string \| null } }`                   |
+| `GET`  | `/api/file/<rel>`   | Metadata + (for md) rendered `html`, `toc`, `warnings` |
+| `GET`  | `/content/<rel>`    | Raw bytes for iframes and relative assets              |
+| `GET`  | `/api/events`       | SSE stream of `event: reload` when watch is enabled    |
 
 JSON errors use the envelope `{ "error": { "code", "message" } }`.
 
 ## HTTP status codes
 
-| Code | When |
-| --- | --- |
-| `200` | OK |
+| Code  | When                                                    |
+| ----- | ------------------------------------------------------- |
+| `200` | OK                                                      |
 | `400` | `PATH_TRAVERSAL` — request tried to escape content root |
-| `404` | `NOT_FOUND` — file/route missing |
-| `500` | `READ_FAILED`, `CONFIG_INVALID`, or unhandled error |
-| `503` | `NOT_READY` — content root not readable |
+| `404` | `NOT_FOUND` — file/route missing                        |
+| `500` | `READ_FAILED`, `CONFIG_INVALID`, or unhandled error     |
+| `503` | `NOT_READY` — content root not readable                 |
 
 ## Watch / live reload
 
@@ -122,50 +120,6 @@ deno task fmt     # format
 deno task lint    # lint
 deno task test    # run all tests
 deno task check   # fmt + lint + test
-```
-
-## Architecture
-
-Per `AGENTS.md`:
-
-- **Deno** runtime, Hono HTTP framework, Cliffy CLI.
-- **Port & adapter + layered**: `Handler → Service → Adapter → Ports`.
-- **No database**, no ORM.
-- **Sentinel `AppError` + `await-to-js` `to()`** for error flow; the only
-  `try/catch` boundaries are framework error handlers (`app.onError`).
-- **Logger port** — no `console.log` in app code.
-- **Class-based DI** — composition root in `src/cli/main.ts` is the only
-  place adapters are constructed.
-
-## Project layout
-
-```
-src/
-├── cli/main.ts                      # composition root
-├── config/{schema,loadConfig}.ts   # zod-validated merged config
-├── domain/{errors,contentFile}.ts  # AppError + content types
-├── ports/{fileStore,logger}.ts      # interfaces only
-├── adapter/
-│   ├── consoleLogger.ts
-│   ├── denoFileStore.ts             # production FileStore
-│   └── fakeFileStore.ts             # in-memory test fake
-├── service/
-│   ├── contentIndexService.ts       # scan/filter/humanize/index
-│   ├── humanize.ts                  # basename + label helpers
-│   ├── markdownRenderService.ts     # marked + highlight.js
-│   └── watchCoordinator.ts          # Deno.watchFs + debounce
-├── handler/
-│   ├── app.ts                       # Hono factory
-│   ├── errorMapper.ts               # AppError.code → HTTP status
-│   ├── healthHandler.ts
-│   ├── filesHandler.ts              # /api/files /api/tree /api/file /content/*
-│   └── eventsHandler.ts             # /api/events SSE
-├── api/schemas/files.ts             # zod response schemas
-└── ui/                              # static reader (no build step)
-    ├── index.html
-    ├── styles.css
-    ├── app.js
-    └── app.js                     # vanilla JS app
 ```
 
 ## Out of scope (v1)
