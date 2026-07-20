@@ -82,7 +82,7 @@ export class WatchCoordinator {
   }
 
   async #refresh(): Promise<void> {
-    const [err] = await to(this.#index.refresh());
+    const err = await this.#index.refresh();
     if (err) {
       const re = err instanceof ReadFailedError
         ? err

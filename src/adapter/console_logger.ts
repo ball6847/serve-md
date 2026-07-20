@@ -1,4 +1,5 @@
 import type { Logger, LogLevel } from "../ports/logger.ts";
+import { trySync } from "../utils/try_sync.ts";
 
 const LEVEL_ORDER: Record<LogLevel, number> = {
   debug: 10,
@@ -73,23 +74,24 @@ export class ConsoleLogger implements Logger {
       ...bindings,
       message,
     };
+    const [serializeErr, serialized] = trySync(() => JSON.stringify(record) + "\n");
     let line: string;
-    try {
-      line = JSON.stringify(record) + "\n";
-    } catch {
+    if (serializeErr) {
       // e.g. circular structures; fall back to a minimal line
-      line = JSON.stringify({
-        time: record.time,
-        level,
-        message,
-        bindingsError: "could not serialize",
-      }) + "\n";
+      const [_e, fallback] = trySync(() =>
+        JSON.stringify({
+          time: record.time,
+          level,
+          message,
+          bindingsError: "could not serialize",
+        }) + "\n"
+      );
+      line = (fallback as string) ?? "";
+    } else {
+      line = (serialized as string) ?? "";
     }
-    try {
-      this.#writer(line);
-    } catch {
-      // last-resort swallow — logging must not crash
-    }
+    const [_writeErr] = trySync(() => this.#writer(line));
+    // last-resort swallow — logging must not crash
   }
 }
 

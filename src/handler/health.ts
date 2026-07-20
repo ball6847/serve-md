@@ -1,8 +1,7 @@
 import type { ContentIndexService } from "../service/content_index.ts";
 import type { FileStore } from "../ports/file_store.ts";
 import type { Logger } from "../ports/logger.ts";
-import { NotReadyError } from "../domain/errors.ts";
-import { to } from "await-to-js";
+import { AppError, NotReadyError } from "../domain/errors.ts";
 
 export interface HealthDeps {
   index: ContentIndexService;
@@ -23,10 +22,10 @@ export class HealthHandler {
 
   /** GET /ready — 200 if content root is readable, else 503. */
   async ready(): Promise<Response> {
-    const [err] = await to(this.#deps.store.stat("."));
-    if (err) {
+    const stat = await this.#deps.store.stat(".");
+    if (stat instanceof AppError) {
       this.#deps.logger.warn(
-        { errCode: "NOT_READY", reason: String(err) },
+        { errCode: "NOT_READY", reason: String(stat) },
         "ready check failed",
       );
       const body = {

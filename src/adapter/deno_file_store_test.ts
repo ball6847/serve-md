@@ -1,12 +1,7 @@
-import {
-  assertEquals,
-  assertInstanceOf,
-  assertRejects,
-  assertStringIncludes,
-} from "jsr:@std/assert@^1";
+import { assertEquals, assertInstanceOf, assertStringIncludes } from "jsr:@std/assert@^1";
 import { join, normalize } from "@std/path";
 import { DenoFileStore } from "./deno_file_store.ts";
-import { NotFoundError, PathTraversalError, ReadFailedError } from "../domain/errors.ts";
+import { AppError, NotFoundError, PathTraversalError, ReadFailedError } from "../domain/errors.ts";
 
 async function makeRoot(): Promise<{ root: string; cleanup: () => Promise<void> }> {
   const root = await Deno.makeTempDir({ prefix: "serve-md-fs-" });
@@ -36,6 +31,8 @@ Deno.test("DenoFileStore: read file inside root", async () => {
     const text = await store.readText("hello.md");
     assertEquals(text, "hi");
     const stat = await store.stat("hello.md");
+    assertInstanceOf(stat, Object);
+    if (stat instanceof AppError) throw stat;
     assertEquals(stat.isFile, true);
     assertEquals(stat.size, 2);
   } finally {
@@ -59,10 +56,8 @@ Deno.test("DenoFileStore: reject .. escape with PathTraversalError", async () =>
   const { root, cleanup } = await makeRoot();
   try {
     const store = new DenoFileStore(root);
-    await assertRejects(
-      () => store.readText("../outside.txt"),
-      PathTraversalError,
-    );
+    const result = await store.readText("../outside.txt");
+    assertInstanceOf(result, PathTraversalError);
   } finally {
     await cleanup();
   }
@@ -72,10 +67,8 @@ Deno.test("DenoFileStore: reject nested a/../../outside", async () => {
   const { root, cleanup } = await makeRoot();
   try {
     const store = new DenoFileStore(root);
-    await assertRejects(
-      () => store.readText("a/../../outside"),
-      PathTraversalError,
-    );
+    const result = await store.readText("a/../../outside");
+    assertInstanceOf(result, PathTraversalError);
   } finally {
     await cleanup();
   }
@@ -86,7 +79,7 @@ Deno.test("DenoFileStore: leading slash treated as relative under root", async (
   // `/etc/passwd` becomes `etc/passwd` under root — this is relative, not an escape.
   const { root, cleanup } = await makeRoot();
   try {
-    await Deno.mkdir(join(root, "etc"), { recursive: true });
+    await Deno.mkdir(join(root, "etc"));
     await Deno.writeTextFile(join(root, "etc", "passwd"), "fake");
     const store = new DenoFileStore(root);
     const text = await store.readText("/etc/passwd");
@@ -100,10 +93,8 @@ Deno.test("DenoFileStore: missing file is NotFoundError", async () => {
   const { root, cleanup } = await makeRoot();
   try {
     const store = new DenoFileStore(root);
-    await assertRejects(
-      () => store.readText("missing.md"),
-      NotFoundError,
-    );
+    const result = await store.readText("missing.md");
+    assertInstanceOf(result, NotFoundError);
   } finally {
     await cleanup();
   }
@@ -113,10 +104,8 @@ Deno.test("DenoFileStore: stat on missing file is NotFoundError", async () => {
   const { root, cleanup } = await makeRoot();
   try {
     const store = new DenoFileStore(root);
-    await assertRejects(
-      () => store.stat("nope.md"),
-      NotFoundError,
-    );
+    const result = await store.stat("nope.md");
+    assertInstanceOf(result, NotFoundError);
   } finally {
     await cleanup();
   }
@@ -128,6 +117,7 @@ Deno.test("DenoFileStore: readBytes returns Uint8Array", async () => {
     await Deno.writeTextFile(join(root, "blob.bin"), "abcdef");
     const store = new DenoFileStore(root);
     const bytes = await store.readBytes("blob.bin");
+    if (bytes instanceof AppError) throw bytes;
     assertEquals(bytes instanceof Uint8Array, true);
     assertEquals(new TextDecoder().decode(bytes), "abcdef");
   } finally {
@@ -143,6 +133,7 @@ Deno.test("DenoFileStore: listDir returns entries with relativePath", async () =
     await Deno.writeTextFile(join(root, "docs", "b.md"), "");
     const store = new DenoFileStore(root);
     const entries = await store.listDir("");
+    if (entries instanceof AppError) throw entries;
     const names = entries.map((e) => e.name).sort();
     assertEquals(names, ["a.md", "docs"]);
     const docsEntry = entries.find((e) => e.name === "docs");
@@ -161,6 +152,7 @@ Deno.test("DenoFileStore: walkFiles returns all files recursively with posix pat
     await Deno.writeTextFile(join(root, "ignored.ts"), "");
     const store = new DenoFileStore(root);
     const files = await store.walkFiles("");
+    if (files instanceof AppError) throw files;
     // Plan 03: walkFiles returns all files; extension filtering is plan 04.
     const paths = files.map((f) => f.relativePath).sort();
     assertEquals(paths, ["a.md", "docs/sub/y.md", "docs/x.md", "ignored.ts"]);
@@ -193,10 +185,8 @@ Deno.test("DenoFileStore: symlink escape is rejected with PathTraversalError", a
         throw e;
       }
       const store = new DenoFileStore(root);
-      await assertRejects(
-        () => store.readText("link.txt"),
-        PathTraversalError,
-      );
+      const result = await store.readText("link.txt");
+      assertInstanceOf(result, PathTraversalError);
     } finally {
       try {
         await Deno.remove(outside, { recursive: true });
@@ -215,6 +205,7 @@ Deno.test("DenoFileStore: stat on dir isDirectory=true", async () => {
     await Deno.mkdir(join(root, "docs"));
     const store = new DenoFileStore(root);
     const stat = await store.stat("docs");
+    if (stat instanceof AppError) throw stat;
     assertEquals(stat.isDirectory, true);
     assertEquals(stat.isFile, false);
   } finally {
@@ -227,6 +218,7 @@ Deno.test("DenoFileStore: resolveRelative returns absolute path inside root", as
   try {
     const store = new DenoFileStore(root);
     const abs = await store.resolveRelative("a/b.md");
+    if (abs instanceof AppError) throw abs;
     assertStringIncludes(abs, root);
     assertStringIncludes(abs, "a/b.md");
   } finally {
@@ -238,16 +230,10 @@ Deno.test("DenoFileStore: store error classes are AppError", async () => {
   const { root, cleanup } = await makeRoot();
   try {
     const store = new DenoFileStore(root);
-    try {
-      await store.readText("nope");
-    } catch (e) {
-      assertInstanceOf(e, NotFoundError);
-    }
-    try {
-      await store.readText("../x");
-    } catch (e) {
-      assertInstanceOf(e, PathTraversalError);
-    }
+    const notFound = await store.readText("nope");
+    assertInstanceOf(notFound, NotFoundError);
+    const traversal = await store.readText("../x");
+    assertInstanceOf(traversal, PathTraversalError);
     // ReadFailedError reserved for actual read failures (permissions) — best-effort
     // covered by integration, not asserted here.
   } finally {
@@ -255,30 +241,27 @@ Deno.test("DenoFileStore: store error classes are AppError", async () => {
   }
 });
 
-Deno.test("DenoFileStore: readText returns text or throws ReadFailedError", async () => {
+Deno.test("DenoFileStore: readText returns text or ReadFailedError as value", async () => {
   const { root, cleanup } = await makeRoot();
   try {
     // Plain utf-8 content round-trips
     const path = join(root, "plain.md");
     await Deno.writeTextFile(path, "hello world");
     const store = new DenoFileStore(root);
-    assertEquals(await store.readText("plain.md"), "hello world");
+    const text = await store.readText("plain.md");
+    assertEquals(text, "hello world");
 
     // Invalid utf-8 (lone continuation byte) — Deno's readTextFile either decodes
     // leniently with replacement or throws. Either is acceptable: not a crash.
     const binPath = join(root, "binary.md");
     await Deno.writeFile(binPath, new Uint8Array([0xff, 0xfe, 0xfd]));
-    let threw = false;
-    try {
-      await store.readText("binary.md");
-    } catch (e) {
-      threw = true;
-      assertInstanceOf(e, ReadFailedError);
-    }
-    // If Deno decoded leniently, no throw — that's fine too.
-    // We only assert the *acceptable* behavior: never a crash, never NOT_FOUND.
-    if (!threw) {
-      // ok
+    const result = await store.readText("binary.md");
+    // If Deno decoded leniently, result is a string — that's fine.
+    // If Deno threw, result is a ReadFailedError value.
+    if (typeof result === "string") {
+      // ok — lenient decoding
+    } else {
+      assertInstanceOf(result, ReadFailedError);
     }
   } finally {
     await cleanup();

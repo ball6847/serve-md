@@ -7,7 +7,7 @@ import { errorEnvelope, statusFor } from "../handler/error_mapper.ts";
 import { FakeFileStore } from "../adapter/fake_file_store.ts";
 import { ContentIndexService } from "../service/content_index.ts";
 import { ConsoleLogger } from "../adapter/console_logger.ts";
-import { NotFoundError, PathTraversalError } from "../domain/errors.ts";
+import { NotFoundError, PathTraversalError, ReadFailedError } from "../domain/errors.ts";
 import { Hono } from "hono";
 import type { Logger } from "../ports/logger.ts";
 import { FakeStaticAssetStore } from "../adapter/fake_static_asset_store.ts";
@@ -32,8 +32,12 @@ async function build(opts?: { throwOnReady?: Error }): Promise<Built> {
   if (opts?.throwOnReady) {
     const failErr: Error = opts.throwOnReady;
     class FailingStatStore extends FakeFileStore {
-      override stat(_p: string): Promise<import("../ports/file_store.ts").FileStat> {
-        return Promise.reject(failErr);
+      override stat(
+        _p: string,
+      ): Promise<
+        import("../ports/file_store.ts").FileStat | import("../domain/errors.ts").AppError
+      > {
+        return Promise.resolve(new ReadFailedError("disk gone", { cause: failErr }));
       }
     }
     storeForHandler = new FailingStatStore("/root");

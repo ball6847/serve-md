@@ -1,5 +1,7 @@
 import { join, normalize, relative, SEPARATOR } from "@std/path";
-import { NotFoundError, PathTraversalError, ReadFailedError } from "../domain/errors.ts";
+import { to } from "await-to-js";
+import { trySync } from "../utils/try_sync.ts";
+import { AppError, NotFoundError, PathTraversalError, ReadFailedError } from "../domain/errors.ts";
 import type { DirEntry, FileStat, FileStore } from "../ports/file_store.ts";
 
 function toPosix(p: string): string {
@@ -16,26 +18,28 @@ function toPosix(p: string): string {
  *
  * AGENTS: no try/catch — we map Deno errors to `AppError` subclasses via
  * explicit checks (`instanceof Deno.errors.NotFound`, etc.) and return the
- * appropriate sentinel.
+ * appropriate sentinel as a value (not thrown).
  */
 export class DenoFileStore implements FileStore {
   readonly contentRoot: string;
 
   constructor(contentRoot: string) {
-    this.contentRoot = normalize(resolveReal(contentRoot));
+    const [err, real] = trySync(() => normalize(Deno.realPathSync(contentRoot)));
+    this.contentRoot = err ? normalize(contentRoot) : real;
   }
 
-  resolveRelative(relativePath: string): Promise<string> {
+  resolveRelative(relativePath: string): Promise<string | AppError> {
     return this.#resolve(relativePath);
   }
 
-  async stat(relativePath: string): Promise<FileStat> {
+  async stat(relativePath: string): Promise<FileStat | AppError> {
     const abs = await this.#resolve(relativePath);
-    let info: Deno.FileInfo;
-    try {
-      info = await Deno.stat(abs);
-    } catch (e) {
-      throw mapDenoStatError(e);
+    if (abs instanceof AppError) {
+      return abs;
+    }
+    const [err, info] = await to(Deno.stat(abs));
+    if (err) {
+      return mapDenoStatError(err);
     }
     return {
       isFile: info.isFile,
@@ -45,43 +49,53 @@ export class DenoFileStore implements FileStore {
     };
   }
 
-  async readText(relativePath: string): Promise<string> {
+  async readText(relativePath: string): Promise<string | AppError> {
     const abs = await this.#resolve(relativePath);
-    try {
-      return await Deno.readTextFile(abs);
-    } catch (e) {
-      if (e instanceof Deno.errors.NotFound) {
-        throw new NotFoundError(`file not found: ${relativePath}`, { cause: e });
-      }
-      throw new ReadFailedError(`read failed: ${relativePath}`, { cause: e });
+    if (abs instanceof AppError) {
+      return abs;
     }
+    const [err, content] = await to(Deno.readTextFile(abs));
+    if (err) {
+      if (err instanceof Deno.errors.NotFound) {
+        return new NotFoundError(`file not found: ${relativePath}`, { cause: err });
+      }
+      return new ReadFailedError(`read failed: ${relativePath}`, { cause: err });
+    }
+    return content;
   }
 
-  async readBytes(relativePath: string): Promise<Uint8Array> {
+  async readBytes(relativePath: string): Promise<Uint8Array | AppError> {
     const abs = await this.#resolve(relativePath);
-    try {
-      return await Deno.readFile(abs);
-    } catch (e) {
-      if (e instanceof Deno.errors.NotFound) {
-        throw new NotFoundError(`file not found: ${relativePath}`, { cause: e });
-      }
-      throw new ReadFailedError(`read failed: ${relativePath}`, { cause: e });
+    if (abs instanceof AppError) {
+      return abs;
     }
+    const [err, content] = await to(Deno.readFile(abs));
+    if (err) {
+      if (err instanceof Deno.errors.NotFound) {
+        return new NotFoundError(`file not found: ${relativePath}`, { cause: err });
+      }
+      return new ReadFailedError(`read failed: ${relativePath}`, { cause: err });
+    }
+    return content;
   }
 
-  async listDir(relativePath: string): Promise<DirEntry[]> {
+  async listDir(relativePath: string): Promise<DirEntry[] | AppError> {
     const abs = await this.#resolve(relativePath);
-    let entries: Deno.DirEntry[];
-    try {
-      entries = [];
+    if (abs instanceof AppError) {
+      return abs;
+    }
+    const [err, entries] = await to((async () => {
+      const result: Deno.DirEntry[] = [];
       for await (const e of Deno.readDir(abs)) {
-        entries.push(e);
+        result.push(e);
       }
-    } catch (e) {
-      if (e instanceof Deno.errors.NotFound) {
-        throw new NotFoundError(`dir not found: ${relativePath || "."}`, { cause: e });
+      return result;
+    })());
+    if (err) {
+      if (err instanceof Deno.errors.NotFound) {
+        return new NotFoundError(`dir not found: ${relativePath || "."}`, { cause: err });
       }
-      throw new ReadFailedError(`listdir failed: ${relativePath}`, { cause: e });
+      return new ReadFailedError(`listdir failed: ${relativePath}`, { cause: err });
     }
     const out: DirEntry[] = [];
     for (const e of entries) {
@@ -103,24 +117,28 @@ export class DenoFileStore implements FileStore {
     return out;
   }
 
-  async walkFiles(relativePath?: string): Promise<DirEntry[]> {
+  async walkFiles(relativePath?: string): Promise<DirEntry[] | AppError> {
     const start = relativePath ?? "";
     const abs = await this.#resolve(start);
+    if (abs instanceof AppError) {
+      return abs;
+    }
     const out: DirEntry[] = [];
     const stack: string[] = [abs];
     while (stack.length > 0) {
       const current = stack.pop() as string;
-      let entries: Deno.DirEntry[];
-      try {
-        entries = [];
+      const [err, entries] = await to((async () => {
+        const result: Deno.DirEntry[] = [];
         for await (const e of Deno.readDir(current)) {
-          entries.push(e);
+          result.push(e);
         }
-      } catch (e) {
-        if (e instanceof Deno.errors.NotFound) {
-          throw new NotFoundError(`dir not found: ${start || "."}`, { cause: e });
+        return result;
+      })());
+      if (err) {
+        if (err instanceof Deno.errors.NotFound) {
+          return new NotFoundError(`dir not found: ${start || "."}`, { cause: err });
         }
-        throw new ReadFailedError(`walk failed: ${start}`, { cause: e });
+        return new ReadFailedError(`walk failed: ${start}`, { cause: err });
       }
       for (const e of entries) {
         const entryAbs = join(current, e.name);
@@ -160,33 +178,33 @@ export class DenoFileStore implements FileStore {
    * Resolve a relative path under root, normalizing, and rejecting any
    * traversal (including symlink escape).
    */
-  async #resolve(relativePath: string): Promise<string> {
+  async #resolve(relativePath: string): Promise<string | AppError> {
     // Reject empty / null bytes
     if (relativePath.includes("\0")) {
-      throw new PathTraversalError("path contains null byte");
+      return new PathTraversalError("path contains null byte");
     }
     // Normalize: strip leading slashes
     const rel = relativePath.replace(/^\/+/, "");
     const candidate = normalize(join(this.contentRoot, rel));
     if (!isInside(candidate, this.contentRoot)) {
-      throw new PathTraversalError(`path escapes root: ${relativePath}`);
+      return new PathTraversalError(`path escapes root: ${relativePath}`);
     }
     // Resolve symlinks if path exists; if not, return normalized candidate
     // so the caller gets a clear NotFoundError. Only check symlinks for
     // entries that exist (Deno.stat will tell us).
-    let isSymlink = false;
-    try {
-      const lstat = await Deno.lstat(candidate);
-      isSymlink = lstat.isSymlink;
-    } catch (e) {
-      if (!(e instanceof Deno.errors.NotFound)) {
-        throw new ReadFailedError(`lstat failed: ${relativePath}`, { cause: e });
+    const [err, lstat] = await to(Deno.lstat(candidate));
+    if (err) {
+      if (err instanceof Deno.errors.NotFound) {
+        // File doesn't exist yet — return candidate so caller gets NotFoundError
+        return candidate;
       }
+      return new ReadFailedError(`lstat failed: ${relativePath}`, { cause: err });
     }
+    const isSymlink = lstat.isSymlink;
     if (isSymlink) {
       const real = resolveReal(candidate);
       if (!isInside(real, this.contentRoot)) {
-        throw new PathTraversalError(`symlink escapes root: ${relativePath}`);
+        return new PathTraversalError(`symlink escapes root: ${relativePath}`);
       }
       return real;
     }
@@ -195,11 +213,11 @@ export class DenoFileStore implements FileStore {
 }
 
 function resolveReal(p: string): string {
-  try {
-    return normalize(Deno.realPathSync(p));
-  } catch {
+  const [err, real] = trySync(() => normalize(Deno.realPathSync(p)));
+  if (err) {
     return normalize(p);
   }
+  return real;
 }
 
 function isInside(candidate: string, root: string): boolean {
@@ -212,7 +230,7 @@ function isInside(candidate: string, root: string): boolean {
   return !rel.startsWith("..") && !normalize(rel).startsWith("..");
 }
 
-function mapDenoStatError(e: unknown): Error {
+function mapDenoStatError(e: unknown): AppError {
   if (e instanceof Deno.errors.NotFound) {
     return new NotFoundError("not found", { cause: e });
   }

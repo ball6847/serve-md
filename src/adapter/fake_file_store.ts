@@ -1,11 +1,13 @@
 import type { DirEntry, FileStat, FileStore } from "../ports/file_store.ts";
-import { NotFoundError, PathTraversalError } from "../domain/errors.ts";
+import { AppError, NotFoundError, PathTraversalError } from "../domain/errors.ts";
 
 /**
  * In-memory FileStore fake for tests.
  * - `files` is `{ relativePath: { content, size?, mtime? } }`
  * - `dirs` is the set of directory relative paths that should be recognized
  *   (auto-derived from files if not given).
+ *
+ * AGENTS: errors are returned as values (not thrown), matching the real adapter.
  */
 export class FakeFileStore implements FileStore {
   readonly contentRoot: string;
@@ -34,14 +36,14 @@ export class FakeFileStore implements FileStore {
     }
   }
 
-  resolveRelative(relativePath: string): Promise<string> {
+  resolveRelative(relativePath: string): Promise<string | AppError> {
     if (relativePath.includes("..")) {
-      return Promise.reject(new PathTraversalError(`path escapes root: ${relativePath}`));
+      return Promise.resolve(new PathTraversalError(`path escapes root: ${relativePath}`));
     }
     return Promise.resolve(`${this.contentRoot}/${relativePath}`);
   }
 
-  stat(relativePath: string): Promise<FileStat> {
+  stat(relativePath: string): Promise<FileStat | AppError> {
     const entry = this.#files.get(relativePath);
     if (entry) {
       return Promise.resolve({
@@ -59,26 +61,26 @@ export class FakeFileStore implements FileStore {
         mtime: null,
       });
     }
-    return Promise.reject(new NotFoundError(`not found: ${relativePath}`));
+    return Promise.resolve(new NotFoundError(`not found: ${relativePath}`));
   }
 
-  readText(relativePath: string): Promise<string> {
+  readText(relativePath: string): Promise<string | AppError> {
     const e = this.#files.get(relativePath);
     if (!e) {
-      return Promise.reject(new NotFoundError(`not found: ${relativePath}`));
+      return Promise.resolve(new NotFoundError(`not found: ${relativePath}`));
     }
     return Promise.resolve(new TextDecoder().decode(e.content));
   }
 
-  readBytes(relativePath: string): Promise<Uint8Array> {
+  readBytes(relativePath: string): Promise<Uint8Array | AppError> {
     const e = this.#files.get(relativePath);
     if (!e) {
-      return Promise.reject(new NotFoundError(`not found: ${relativePath}`));
+      return Promise.resolve(new NotFoundError(`not found: ${relativePath}`));
     }
     return Promise.resolve(e.content);
   }
 
-  listDir(relativePath: string): Promise<DirEntry[]> {
+  listDir(relativePath: string): Promise<DirEntry[] | AppError> {
     const prefix = relativePath === "" ? "" : relativePath + "/";
     const out: DirEntry[] = [];
     const seen = new Set<string>();
@@ -116,7 +118,7 @@ export class FakeFileStore implements FileStore {
     return Promise.resolve(out);
   }
 
-  walkFiles(relativePath?: string): Promise<DirEntry[]> {
+  walkFiles(relativePath?: string): Promise<DirEntry[] | AppError> {
     const prefix = relativePath && relativePath.length > 0 ? relativePath + "/" : "";
     const out: DirEntry[] = [];
     for (const p of this.#files.keys()) {

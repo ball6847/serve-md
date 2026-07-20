@@ -1,6 +1,7 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@^1";
 import { ContentIndexService } from "./content_index.ts";
 import { FakeFileStore } from "../adapter/fake_file_store.ts";
+import { ReadFailedError } from "../domain/errors.ts";
 
 function makeStore(): FakeFileStore {
   const store = new FakeFileStore("/root");
@@ -188,9 +189,13 @@ Deno.test("ContentIndexService: refresh failure keeps previous index", async () 
   const svc = new ContentIndexService(store, { dotWhitelist: [] });
   await svc.refresh();
   assertEquals(svc.listFiles().length, 1);
-  // Now make walkFiles reject by swapping the method on the instance
-  (store as unknown as { walkFiles: () => Promise<never> }).walkFiles = () => {
-    return Promise.reject(new Error("disk gone"));
+  // Now make walkFiles return an error value instead of resolving entries
+  (store as unknown as {
+    walkFiles: () => Promise<
+      import("../ports/file_store.ts").DirEntry[] | import("../domain/errors.ts").AppError
+    >;
+  }).walkFiles = () => {
+    return Promise.resolve(new ReadFailedError("disk gone"));
   };
   const err = await svc.refresh();
   assertEquals(err === null, false);

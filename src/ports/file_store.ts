@@ -15,7 +15,11 @@
  * - Missing files → `NotFoundError`
  * - Path escapes / symlink escapes → `PathTraversalError`
  * - Other I/O failures (permissions, non-utf8 text read) → `ReadFailedError`
+ *
+ * AGENTS: all methods return `T | AppError` — errors are values, not thrown.
+ * Callers must check `instanceof AppError` on the result.
  */
+import { AppError } from "../domain/errors.ts";
 export interface FileStat {
   isFile: boolean;
   isDirectory: boolean;
@@ -33,11 +37,11 @@ export interface DirEntry {
 
 export interface FileStore {
   readonly contentRoot: string;
-  resolveRelative(relativePath: string): Promise<string>;
-  stat(relativePath: string): Promise<FileStat>;
-  readText(relativePath: string): Promise<string>;
-  readBytes(relativePath: string): Promise<Uint8Array>;
-  listDir(relativePath: string): Promise<DirEntry[]>;
+  resolveRelative(relativePath: string): Promise<string | AppError>;
+  stat(relativePath: string): Promise<FileStat | AppError>;
+  readText(relativePath: string): Promise<string | AppError>;
+  readBytes(relativePath: string): Promise<Uint8Array | AppError>;
+  listDir(relativePath: string): Promise<DirEntry[] | AppError>;
   /** Recursive file entries (no directories) with posix-style relative paths. */
-  walkFiles(relativePath?: string): Promise<DirEntry[]>;
+  walkFiles(relativePath?: string): Promise<DirEntry[] | AppError>;
 }

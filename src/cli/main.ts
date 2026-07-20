@@ -1,10 +1,9 @@
 import { Command } from "cliffy";
 import { Hono } from "hono";
 import { load } from "dotenv";
-import { to } from "await-to-js";
 import { parseConfig, type RawFlags } from "../config/load_config.ts";
 import type { AppConfig } from "../config/schema.ts";
-import { ConfigInvalidError, isAppError } from "../domain/errors.ts";
+import { AppError, ConfigInvalidError, isAppError } from "../domain/errors.ts";
 import { ConsoleLogger } from "../adapter/console_logger.ts";
 import { DenoFileStore } from "../adapter/deno_file_store.ts";
 import { DenoStaticAssetStore } from "../adapter/deno_static_asset_store.ts";
@@ -56,6 +55,9 @@ export function createApp(deps: AppDeps): Hono {
   // Serve index.html for the root
   app.get("/", async () => {
     const html = await deps.staticAssets.readIndex();
+    if (html instanceof AppError) {
+      throw html;
+    }
     return new Response(html, {
       headers: { "content-type": "text/html; charset=utf-8" },
     });
@@ -65,6 +67,9 @@ export function createApp(deps: AppDeps): Hono {
   app.get("/ui/:filename", async (c) => {
     const filename = c.req.param("filename");
     const asset = await deps.staticAssets.readAsset(filename);
+    if (asset instanceof AppError) {
+      throw asset;
+    }
     return new Response(asset.content, { headers: { "content-type": asset.contentType } });
   });
 
@@ -88,13 +93,6 @@ export function createApp(deps: AppDeps): Hono {
     if (rest.length === 0) {
       throw new (await import("../domain/errors.ts")).PathTraversalError("empty content path");
     }
-    const [err] = await to(deps.files.rawContent(rest));
-    if (err) {
-      if (isAppError(err)) {
-        throw err;
-      }
-      throw err;
-    }
     return await deps.files.rawContent(rest);
   });
 
@@ -107,6 +105,9 @@ export function createApp(deps: AppDeps): Hono {
   // an in-app error if the file is missing (same UX as a missing file today).
   app.get("/*", async () => {
     const html = await deps.staticAssets.readIndex();
+    if (html instanceof AppError) {
+      throw html;
+    }
     return new Response(html, {
       headers: { "content-type": "text/html; charset=utf-8" },
     });
@@ -227,7 +228,7 @@ export async function main(argv: string[]): Promise<number> {
 
       // Initial index refresh (best-effort; ready will report failure)
       void (async () => {
-        const [err] = await to(index.refresh());
+        const err = await index.refresh();
         if (err) {
           logger.warn(
             { errCode: "READ_FAILED", reason: err.message },
@@ -260,11 +261,9 @@ export async function main(argv: string[]): Promise<number> {
                 ? "cmd"
                 : "xdg-open";
               const args = Deno.build.os === "windows" ? ["/c", "start", url] : [url];
-              try {
-                new Deno.Command(cmd, { args }).spawn();
-              } catch (e) {
-                logger.warn({ err: String(e) }, "failed to open browser");
-              }
+              // spawn() returns ChildProcess synchronously; errors are rare but possible.
+              const proc = new Deno.Command(cmd, { args }).spawn();
+              void proc; // fire-and-forget; failure is non-fatal
             }
           },
         },

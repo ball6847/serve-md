@@ -1,8 +1,7 @@
-import { to } from "await-to-js";
 import * as posix from "@std/path/posix";
 import type { ContentFile, ContentTreeNode } from "../domain/content_file.ts";
 import type { DirEntry, FileStore } from "../ports/file_store.ts";
-import { NotFoundError, ReadFailedError } from "../domain/errors.ts";
+import { AppError, NotFoundError, ReadFailedError } from "../domain/errors.ts";
 import { ContentPath } from "../domain/content_path.ts";
 
 /**
@@ -39,11 +38,11 @@ export class ContentIndexService {
 
   /** Rebuild the in-memory index. Returns error sentinel on failure. */
   async refresh(): Promise<ReadFailedError | null> {
-    const [err, entries] = await to(this.#store.walkFiles(""));
-    if (err) {
-      const readErr = err instanceof ReadFailedError || err instanceof NotFoundError
-        ? new ReadFailedError("index refresh failed", { cause: err })
-        : new ReadFailedError("index refresh failed", { cause: err });
+    const entries = await this.#store.walkFiles("");
+    if (entries instanceof AppError) {
+      const readErr = entries instanceof ReadFailedError || entries instanceof NotFoundError
+        ? new ReadFailedError("index refresh failed", { cause: entries })
+        : new ReadFailedError("index refresh failed", { cause: entries });
       this.#lastError = readErr;
       // Per plan: keep previous index, surface error to caller
       return readErr;
@@ -89,8 +88,8 @@ export class ContentIndexService {
 
   async #hydrateStats(files: ContentFile[]): Promise<void> {
     for (const f of files) {
-      const [err, stat] = await to(this.#store.stat(f.relativePath));
-      if (err) {
+      const stat = await this.#store.stat(f.relativePath);
+      if (stat instanceof AppError) {
         continue;
       }
       f.size = stat.size;
@@ -134,8 +133,8 @@ export class ContentIndexService {
       return "readme.md";
     }
     // 3) README (extensionless) — must be a regular file at root
-    const [err, stat] = await to(this.#store.stat("README"));
-    if (!err && stat?.isFile) {
+    const stat = await this.#store.stat("README");
+    if (!(stat instanceof AppError) && stat?.isFile) {
       return "README";
     }
     return null;

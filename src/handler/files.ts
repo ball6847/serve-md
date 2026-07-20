@@ -4,8 +4,7 @@ import { MarkdownRenderService } from "../service/markdown_render.ts";
 import type { ContentIndexService } from "../service/content_index.ts";
 import type { FileStore } from "../ports/file_store.ts";
 import type { Logger } from "../ports/logger.ts";
-import { NotFoundError, ReadFailedError } from "../domain/errors.ts";
-import { to } from "await-to-js";
+import { AppError, NotFoundError, ReadFailedError } from "../domain/errors.ts";
 import * as posix from "@std/path/posix";
 
 /**
@@ -49,18 +48,26 @@ export class FilesHandler {
 
   async fileMeta(path: string): Promise<Response> {
     // Enforce path safety up front. The store rejects any traversal attempt.
-    await this.#deps.store.resolveRelative(path);
+    const resolved = await this.#deps.store.resolveRelative(path);
+    if (resolved instanceof AppError) {
+      throw resolved;
+    }
 
     // Allow extensionless README as a special case
     const known = this.#deps.index.getFile(path);
     if (!known) {
       if (path === "README") {
         // Try to stat directly; treat as plain
-        const [statErr, stat] = await to(this.#deps.store.stat("README"));
-        if (statErr || !stat?.isFile) {
-          throw new NotFoundError(`file not found: ${path}`, { cause: statErr ?? undefined });
+        const stat = await this.#deps.store.stat("README");
+        if (stat instanceof AppError || !stat?.isFile) {
+          throw new NotFoundError(`file not found: ${path}`, {
+            cause: stat instanceof AppError ? stat : undefined,
+          });
         }
         const text = await this.#deps.store.readText("README");
+        if (text instanceof AppError) {
+          throw new NotFoundError(`file not found: ${path}`, { cause: text });
+        }
         const rendered = this.#deps.renderer?.render(text, { relativeDir: "" });
         return Response.json({
           data: {
@@ -81,6 +88,9 @@ export class FilesHandler {
       throw new NotFoundError(`file not found: ${path}`);
     }
     const stat = await this.#deps.store.stat(known.relativePath);
+    if (stat instanceof AppError) {
+      throw new NotFoundError(`file not found: ${known.relativePath}`, { cause: stat });
+    }
     const contentType = contentTypeFor(known.basename);
     const isMarkdown = known.kind === "markdown";
     const isHtml = known.kind === "html";
@@ -98,15 +108,15 @@ export class FilesHandler {
     if (isMarkdown) {
       if (largeFile(stat.size)) {
         // For large markdown, still include the raw text but skip render to avoid blocking
-        const [readErr, t] = await to(this.#deps.store.readText(known.relativePath));
-        if (readErr) {
-          throw new NotFoundError("failed to read", { cause: readErr });
+        const t = await this.#deps.store.readText(known.relativePath);
+        if (t instanceof AppError) {
+          throw new NotFoundError("failed to read", { cause: t });
         }
         text = t;
       } else if (this.#deps.renderer) {
-        const [readErr, t] = await to(this.#deps.store.readText(known.relativePath));
-        if (readErr) {
-          throw new NotFoundError("failed to read", { cause: readErr });
+        const t = await this.#deps.store.readText(known.relativePath);
+        if (t instanceof AppError) {
+          throw new NotFoundError(`failed to read`, { cause: t });
         }
         text = t;
         const result = this.#deps.renderer.render(t, { relativeDir });
@@ -141,14 +151,22 @@ export class FilesHandler {
     // Allow ANY file under root for assets (HTML needs relative assets like images/css/js).
     // Path traversal is enforced by FileStore.resolveRelative + isInside check.
     const abs = await this.#deps.store.resolveRelative(path);
-    const [statErr, stat] = await to(this.#deps.store.stat(path));
-    if (statErr || !stat?.isFile) {
-      throw new NotFoundError(`file not found: ${path}`, { cause: statErr ?? undefined });
+    if (abs instanceof AppError) {
+      throw abs;
+    }
+    const stat = await this.#deps.store.stat(path);
+    if (stat instanceof AppError || !stat?.isFile) {
+      throw new NotFoundError(`file not found: ${path}`, {
+        cause: stat instanceof AppError ? stat : undefined,
+      });
     }
     const bytes = await this.#deps.store.readBytes(path);
+    if (bytes instanceof AppError) {
+      throw new NotFoundError(`file not found: ${path}`, { cause: bytes });
+    }
     const contentType = contentTypeFor(path);
     void abs;
-    // Cast to BodyInit: Uint8Array is accepted at runtime; the DOM lib here
+    // Cast to BodyIndic: Uint8Array is accepted at runtime; the DOM lib here
     // is conservative. The constructor accepts BufferSource.
     return new Response(bytes as unknown as BodyInit, {
       status: 200,

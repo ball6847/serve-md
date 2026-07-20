@@ -1,4 +1,4 @@
-import { assertEquals, assertInstanceOf } from "jsr:@std/assert@^1";
+import { assertEquals, assertRejects } from "jsr:@std/assert@^1";
 import { FilesHandler, LARGE_FILE_BYTES } from "./files.ts";
 import { FakeFileStore } from "../adapter/fake_file_store.ts";
 import { ContentIndexService } from "../service/content_index.ts";
@@ -231,23 +231,13 @@ Deno.test("GET /content/<html> serves html content-type", async () => {
 });
 
 // AppError integration check
-Deno.test("FilesHandler throws AppError subclasses; to()/instanceof checks work", async () => {
+Deno.test("FilesHandler throws AppError subclasses; instanceof checks work", async () => {
   const store = new FakeFileStore("/root");
   const index = new ContentIndexService(store, { dotWhitelist: [] });
   await index.refresh();
   const files = new FilesHandler({ index, store, logger: silentLogger() });
-  try {
-    await files.fileMeta("nope");
-    throw new Error("should have thrown");
-  } catch (e) {
-    assertInstanceOf(e, NotFoundError);
-  }
-  try {
-    await files.rawContent("../etc/passwd");
-    throw new Error("should have thrown");
-  } catch (e) {
-    assertInstanceOf(e, PathTraversalError);
-  }
+  await assertRejects(async () => await files.fileMeta("nope"), NotFoundError);
+  await assertRejects(async () => await files.rawContent("../etc/passwd"), PathTraversalError);
   // suppress unused
   void ReadFailedError;
 });
