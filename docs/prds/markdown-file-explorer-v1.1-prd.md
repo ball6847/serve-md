@@ -13,17 +13,16 @@
 - **Core Features**:
   1. Recursive scan of content root (default: process CWD) for content files only (`.md`, `.html`, `.htm`).
   2. Two navigation modes (toggle): **Search** (fzf-style filename fuzzy search) and **Browse** (directory tree/list of content-only paths).
-  3. Humanized list labels: relative path + humanized basename (e.g. `docs/plans/my-plan.md` → `docs/plans › My Plan`).
-  4. Markdown rendering (best-effort): GFM-style content, syntax highlighting, images, tables, Mermaid, math, footnotes, callouts, heading anchors, table of contents.
-  5. HTML rendering: app chrome (navigation) remains visible; document body loads in an **iframe** with scripts and relative assets allowed (owner-trusted files).
-  6. Default open target: `README.md` → `readme.md` → `README`; otherwise empty “pick a file” state.
-  7. Light / dark theme.
-  8. Optional live reload via `--watch` / `-w`.
-  9. Network bind: localhost by default; `--network` exposes on all interfaces (e.g. Tailscale).
+  3. Markdown rendering (best-effort): GFM-style content, syntax highlighting, images, tables, Mermaid, footnotes, heading anchors, table of contents.
+  4. HTML rendering: app chrome (navigation) remains visible; document body loads in an **iframe** with scripts and relative assets allowed (owner-trusted files).
+  5. Default open target: `README.md` → `readme.md` → `README`; otherwise empty “pick a file” state.
+  6. Light / dark theme.
+  7. Optional live reload via `--watch` / `-w`.
+  8. Network bind: localhost by default; `--network` exposes on all interfaces (e.g. Tailscale).
 - **Feature Boundaries** (v1 **includes**):
   - Read-only serving and rendering of Markdown/HTML under the content root.
   - Client UI for explore → select → render.
-  - Structured errors and non-fatal render failures (Mermaid/math).
+  - Structured errors and non-fatal render failures (Mermaid).
   - Soft warning when a selected file is larger than 2MB.
 - **Feature Boundaries** (v1 **excludes**):
   - Authentication / password protection.
@@ -32,6 +31,7 @@
   - Multi-root workspaces / multi-project index.
   - Full-text content search (filename fuzzy search only).
   - PDF/export pipeline.
+  - Callouts and math rendering.
 - **User Scenarios**:
   1. From a project root: start the server, open the browser, land on `README.md` if present, switch to Search, type part of a plan name, open and read it.
   2. Browse mode: expand only folders that lead to Markdown/HTML, open an HTML report; navigation chrome stays visible while the report runs in an iframe.
@@ -52,7 +52,7 @@
 | HTTP bind     | Default: `127.0.0.1`. With `--network`: `0.0.0.0` (all interfaces).                                                                                                                                                                                                                                                      |
 | Port          | Default: `8787`. Optional `--port` for override.                                                                                                                                                                                                                                                                         |
 | Watch         | Off by default. `--watch` / `-w` enables filesystem watch on the content root for list refresh + open-file re-render.                                                                                                                                                                                                    |
-| Markdown out  | HTML fragment/page section with styles, highlighting, Mermaid, math, etc.                                                                                                                                                                                                                                                |
+| Markdown out  | HTML fragment/page section with styles, highlighting, Mermaid, etc.                                                                                                                                                                                                                                                |
 | HTML out      | Original document bytes served into iframe `src` (or blob/src URL under same origin), relative assets resolvable under content root with path traversal protection.                                                                                                                                                      |
 
 #### User Interaction
@@ -68,10 +68,10 @@
    - Else if `readme.md` exists → open it.
    - Else if `README` exists (extensionless file named exactly `README`) → open it **only if** it is treated as a readable text artifact; if product limits nav to md/html/htm only, then **README without extension is out of nav list** unless implementation special-cases default open. **Product decision**: default-open candidates are `README.md`, then `readme.md` only among scanned types; bare `README` is attempted as default-open if present on disk as a file, but need not appear in the filtered file index unless it matches allowed extensions. Prefer simpler rule: **default-open only `README.md` then `readme.md`; if neither, “pick a file”.** Bare `README` from user answer is interpreted as third priority only when the file exists; if it has no allowed extension it may still be opened as plain/markdown best-effort for default only—**final simple rule adopted below**.
 5. Search mode: fzf-style fuzzy match against relative paths / basenames; keyboard-friendly list; select opens file.
-6. Browse mode: tree or hierarchical list of folders that contain or lead to content files; humanized labels; select opens file.
+6. Browse mode: tree or hierarchical list of folders that contain or lead to content files; select opens file.
 7. Markdown path: render in content panel with TOC / anchors as available.
 8. HTML path: keep shell; body in iframe; scripts and relative assets allowed.
-9. Errors: in-app panels; process stays up. Mermaid/math failures are inline error blocks.
+9. Errors: in-app panels; process stays up. Mermaid failures are inline error blocks.
 
 **Default-open resolution (authoritative)**:
 
@@ -82,9 +82,8 @@
 
 #### Data Requirements
 
-- In-memory file index: relative path, basename, humanized label, extension/kind (`markdown` | `html`), optional size, optional mtime.
+- In-memory file index: relative path, basename, extension/kind (`markdown` | `html`), optional size, optional mtime.
 - No database.
-- Humanize rule: strip extension; replace `-` and `_` with spaces; collapse spaces; title-case words for display basename; prefix with relative parent path using `›` separator (or `/` + humanized segments—prefer: keep path segments as-is for location, humanize **basename only**: `docs/plans › My Plan`).
 - Path safety: reject `..` and absolute escapes outside content root (`PATH_TRAVERSAL` / equivalent).
 
 #### Edge Cases
@@ -97,7 +96,7 @@
 | Unreadable file (permissions)      | In-app error with stable error code/message.                                 |
 | Path traversal request             | 4xx + sentinel error; never serve outside root.                              |
 | File &gt; 2MB                      | Serve/render still attempted; **warn** banner in UI (do not hard-fail).      |
-| Broken Mermaid / math              | Inline error for that block; rest of document renders.                       |
+| Broken Mermaid              | Inline error for that block; rest of document renders.                       |
 | Malformed Markdown                 | Best-effort render; do not crash.                                            |
 | HTML with absolute external assets | Browser loads them as normal (owner-trusted); no proxy requirement in v1.    |
 | Symlinks                           | Follow only if resolved path stays inside content root; otherwise skip/deny. |
@@ -112,7 +111,7 @@
   - **CLI composition root**: wire content root, bind address, port, watch flag, logger, filesystem adapter, scan service, render service, HTTP handlers, static UI.
   - **Filesystem adapter (port)**: list/read/stat/watch under root with traversal guards.
   - **Index / scan service**: build content-only tree and flat list for search.
-  - **Render service**: Markdown → safe HTML pipeline (highlight, tables, mermaid placeholders, math, footnotes, callouts); HTML mode metadata for iframe URL.
+  - **Render service**: Markdown → safe HTML pipeline (highlight, tables, mermaid placeholders, footnotes); HTML mode metadata for iframe URL.
   - **HTTP API**: health/ready, file list/tree, file content/raw, rendered markdown endpoint or server-driven page, static assets for UI and content-relative assets.
   - **Web UI**: shell with Search/Browse toggle, theme, content panel / iframe, TOC as applicable, live-reload client hook when watch enabled.
 - **Data Storage**: None durable beyond filesystem of the user’s project.
@@ -136,11 +135,11 @@
 ### Risk Assessment
 
 - **Technical Risks**:
-  - Markdown feature surface (callouts, math, mermaid) varies by library—mitigate with “best-effort” acceptance and inline failure UI.
+  - Markdown feature surface (mermaid) varies by library—mitigate with "best-effort" acceptance and inline failure UI.
   - HTML iframe + relative URLs may need a stable base path strategy—mitigate with dedicated content-serving routes.
   - Watch on large trees can be noisy—debounce and scope to content root.
-- **Dependency Risks**: Highlighting / Mermaid / math client or server libs; pin versions; degrade gracefully.
-- **Schedule Risks**: Over-scoping “beautiful” Markdown—phase core GFM + highlight + tables + images first, then mermaid/math/callouts/TOC.
+- **Dependency Risks**: Highlighting / Mermaid client or server libs; pin versions; degrade gracefully.
+- **Schedule Risks**: Over-scoping "beautiful" Markdown—phase core GFM + highlight + tables + images first, then mermaid/TOC.
 
 ## Acceptance Criteria
 
@@ -149,16 +148,16 @@
 - [ ] Starting from a project cwd, the server indexes only `.md`, `.html`, `.htm` files under the root (recursive).
 - [ ] Dotfiles and dot-directories are excluded by default; whitelisted dot-directory basenames via env are included when configured.
 - [ ] Search mode provides fzf-style fuzzy filtering over content file paths/names.
-- [ ] Browse mode shows only directories that lead to content files and lists those files with humanized labels (`path › Humanized Name`).
+- [ ] Browse mode shows only directories that lead to content files and lists those files.
 - [ ] Mode toggle switches between Search and Browse without losing the overall shell.
 - [ ] Default open order: `README.md` → `readme.md` → `README` → empty “pick a file”.
-- [ ] Selecting a Markdown file renders with best-effort support for syntax highlight, images, tables, Mermaid, math, footnotes, callouts, heading anchors, and TOC.
+- [ ] Selecting a Markdown file renders with best-effort support for syntax highlight, images, tables, Mermaid, footnotes, heading anchors, and TOC.
 - [ ] Selecting an HTML file keeps navigation chrome visible and shows document content in an iframe; scripts and relative assets work for same-tree files.
 - [ ] Light and dark themes are available and persist for the session (persistence across reloads preferred if trivial).
 - [ ] Default listen address is `127.0.0.1:8787`; `--network` listens on `0.0.0.0`; port configurable.
 - [ ] `--watch` / `-w` refreshes file index and re-renders the open file on changes; without the flag, no watch requirement.
 - [ ] Files larger than 2MB show a warning banner but still open.
-- [ ] Broken Mermaid or math blocks show inline errors without failing the whole page.
+- [ ] Broken Mermaid blocks show inline errors without failing the whole page.
 - [ ] Unreadable/missing paths produce in-app or API error responses without crashing the process.
 - [ ] Path traversal attempts outside the content root are rejected.
 
@@ -197,7 +196,7 @@
 **Goal**: Content-only discovery and file access APIs.
 
 - [ ] Recursive scan with extension filter and exclude rules.
-- [ ] Flat list + tree builders; humanized labels.
+- [ ] Flat list + tree builders.
 - [ ] API endpoints for list/tree/raw content.
 - [ ] Default README resolution helper.
 
@@ -208,7 +207,7 @@
 
 **Goal**: Beautiful Markdown + HTML iframe shell with navigation modes.
 
-- [ ] Markdown pipeline (highlight, tables, images, mermaid, math, footnotes, callouts, anchors, TOC).
+- [ ] Markdown pipeline (highlight, tables, images, mermaid, footnotes, anchors, TOC).
 - [ ] UI: Search (fuzzy) | Browse toggle, theme, content panel, 2MB warning, error panels.
 - [ ] HTML iframe integration and relative asset serving.
 - [ ] Optional watch + client reload when `-w` set.
@@ -230,6 +229,41 @@
 
 ---
 
+## Version 1.1 Changes
+
+**Date**: 2026-07-19
+
+This revision updates the v1.0 PRD based on implementation findings and product decisions made during development.
+
+### Decisions
+
+| Topic | Decision | Rationale |
+| ----- | -------- | --------- |
+| **Humanized labels** | **Removed** | The humanized label feature (`docs/plans/my-plan.md` → `docs/plans › My Plan`) was removed from the implementation. Raw filenames are displayed instead. This simplifies the index service and UI, and users can rename files directly in their editor if they want different display names. |
+| **Callouts** | **Removed from scope** | GFM-style callouts (`> [!NOTE]`, etc.) will not be supported in v1. They are not part of the core Markdown reading experience and add complexity to the render pipeline. |
+| **Math rendering** | **Removed from scope** | KaTeX / MathJax integration will not be supported in v1. Math rendering adds a significant client-side dependency and is not required for the core AI-planning-artifact use case. |
+| **TOC** | **Planned** | Table of contents rendering is retained as a planned feature. The server already computes TOC entries; the UI panel to display them will be added in a future update. |
+
+### Beyond PRD Features (Implemented)
+
+The following features were implemented during v1 development but were not specified in the original PRD. They are retained as valuable additions:
+
+| Feature | Description |
+| ------- | ----------- |
+| **Frontmatter display** | YAML frontmatter is parsed and rendered as a styled metadata block at the top of Markdown articles. |
+| **Markdown deep-linking** | Internal `.md` links are rewritten to `/?file=...` deep links, enabling in-app navigation without full page reloads. |
+| **Mermaid pan/zoom + fullscreen** | Mermaid diagrams support mouse wheel zoom, click-to-pan, reset view, and fullscreen toggle — beyond the basic client-side rendering originally specified. |
+| **`/api/meta` endpoint** | Exposes server metadata (`{ watch: boolean }`) to the UI. |
+| **`.markdown` extension** | The scanner includes `.markdown` in addition to `.md`, `.html`, `.htm`. |
+
+### Clarification History Addendum
+
+| Round | Topics resolved |
+| ----- | --------------- |
+| 4 (v1.1) | **Removed**: humanized labels, callouts, math rendering. **Retained as planned**: TOC. **Documented**: beyond-PRD features that were implemented (frontmatter display, markdown deep-linking, mermaid pan/zoom+fullscreen, `/api/meta`, `.markdown` extension). |
+
+---
+
 ## Clarification History
 
 | Round | Topics resolved                                                                                                                                                                                                                                                                                                                                                                                                   |
@@ -240,7 +274,8 @@
 
 ---
 
-**Document Version**: 1.0  
+**Document Version**: 1.1  
 **Created**: 2026-07-19  
-**Clarification Rounds**: 3  
+**Revised**: 2026-07-19  
+**Clarification Rounds**: 4  
 **Quality Score**: 94/100
