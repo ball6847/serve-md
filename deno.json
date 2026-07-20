@@ -1,6 +1,6 @@
 {
   "name": "@ball6847/serve-md",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "license": "MIT",
   "tasks": {
     "fmt": "deno fmt src/",
@@ -33,13 +33,19 @@
     "indentWidth": 2,
     "singleQuote": false,
     "semiColons": true,
-    "include": ["src/"]
+    "include": [
+      "src/"
+    ]
   },
   "lint": {
     "rules": {
-      "tags": ["recommended"]
+      "tags": [
+        "recommended"
+      ]
     },
-    "include": ["src/"]
+    "include": [
+      "src/"
+    ]
   },
   "exports": {
     ".": "./src/cli/main.ts"
