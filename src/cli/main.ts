@@ -219,6 +219,13 @@ export async function main(argv: string[]): Promise<number> {
       const staticAssets = new DenoStaticAssetStore(
         config.contentRoot.split("/").pop() || "serve-md",
       );
+      logger.info(
+        {
+          uiMode: staticAssets.mode,
+          uiBaseUrl: staticAssets.baseUrl.href,
+        },
+        "static asset store ready",
+      );
       const app = createApp({
         health,
         files,
