@@ -48,19 +48,27 @@ directory. It will open `README.md` (or `readme.md`, or extensionless
 deno task serve --help
 ```
 
-| Flag            | Description                                                 | Default             |
-| --------------- | ----------------------------------------------------------- | ------------------- |
-| `--port <n>`    | Port to listen on                                           | `8787` (env `PORT`) |
-| `--network`     | Bind on all interfaces (`0.0.0.0`) — required for Tailscale | `127.0.0.1`         |
-| `-w`, `--watch` | Watch content root for changes and notify the UI via SSE    | off                 |
-| `--root <path>` | Content root directory                                      | cwd                 |
-| `--open`        | Open browser automatically on startup                       | off                 |
+| Flag            | Description                                                                                          | Default             |
+| --------------- | ---------------------------------------------------------------------------------------------------- | ------------------- |
+| `--port <n>`    | Preferred port to listen on. If busy, falls back to an OS-assigned free port (see Port fallback)   | `8787` (env `PORT`) |
+| `--network`     | Bind on all interfaces (`0.0.0.0`) — required for Tailscale                                          | `127.0.0.1`         |
+| `-w`, `--watch` | Watch content root for changes and notify the UI via SSE                                             | off                 |
+| `--root <path>` | Content root directory                                                                               | cwd                 |
+| `--open`        | Open browser automatically on startup (uses the actual bound port)                                   | off                 |
+
+### Port fallback
+
+Before starting the HTTP server, `serve-md` probes the preferred port with a
+short-lived TCP bind. If the port is free, it listens there. If the port is
+already in use, it binds with **port `0`** so the OS assigns any free port,
+logs the preferred vs actual port, and continues. `--open` always uses the
+actual bound port.
 
 ## Environment variables
 
 | Var                      | Default   | Description                                                                                                                       |
 | ------------------------ | --------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `PORT`                   | `8787`    | Port to listen on (overridden by `--port`)                                                                                        |
+| `PORT`                   | `8787`    | Preferred listen port (overridden by `--port`). Busy preferred port → OS-assigned free port.                                      |
 | `LOG_LEVEL`              | `info`    | One of `debug`, `info`, `warn`, `error`                                                                                           |
 | `SERVE_MD_DOT_WHITELIST` | _(empty)_ | Comma-separated list of dot-directory basenames to include (e.g. `.context,.notes`). All other dot paths are excluded by default. |
 
@@ -123,7 +131,7 @@ JSON errors use the envelope `{ "error": { "code", "message" } }`.
 ## Watch / live reload
 
 `deno task serve -w` starts a recursive filesystem watcher. On changes
-(debounced ~200ms), the index refreshes and an `event: reload` is broadcast
+(debounced ~1000ms), the index refreshes and an `event: reload` is broadcast
 over `/api/events`. The UI reconnects automatically and re-fetches the file
 list and the currently open file.
 

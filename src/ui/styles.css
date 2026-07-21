@@ -52,6 +52,45 @@ body {
   border-color: var(--border);
 }
 
+/* Content width preset control (topbar) */
+.content-width-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.content-width-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.content-width-btn:hover {
+  color: var(--fg);
+  background: var(--hover);
+}
+.content-width-btn.is-active {
+  color: var(--accent);
+  background: var(--selected);
+  border-color: transparent;
+  box-shadow: none;
+}
+.content-width-btn svg {
+  display: block;
+  flex-shrink: 0;
+}
+
 /* Tree navigation */
 .tree {
   font-size: 13px;
@@ -118,10 +157,20 @@ body {
   opacity: 1;
 }
 
-/* Content area */
+/* Content area — width presets (data-content-width on <html>; default = comfortable) */
 .content-host {
+  width: 100%;
   max-width: 880px;
   margin: 0 auto;
+}
+[data-content-width="comfortable"] .content-host {
+  max-width: 880px;
+}
+[data-content-width="wide"] .content-host {
+  max-width: 1120px;
+}
+[data-content-width="full"] .content-host {
+  max-width: none;
 }
 
 .content iframe {

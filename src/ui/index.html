@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="light" data-content-width="comfortable">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -10,6 +10,15 @@
       var saved = localStorage.getItem("serve-md-theme");
       var theme = saved === "dark" ? "dark" : "light";
       document.documentElement.setAttribute("data-theme", theme);
+    })();
+
+    // Apply saved content width immediately to prevent layout flash
+    (function () {
+      var saved = localStorage.getItem("serve-md-content-width");
+      var width = (saved === "comfortable" || saved === "wide" || saved === "full")
+        ? saved
+        : "comfortable";
+      document.documentElement.setAttribute("data-content-width", width);
     })();
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -76,22 +85,55 @@
         </svg>
         <span class="font-semibold text-sm">{{ brand }}</span>
       </div>
-      <button id="theme-toggle" class="icon-btn p-1.5 rounded-md hover:bg-hover transition-colors"
-        title="Toggle theme" aria-label="Toggle theme">
-        <svg id="theme-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
-          viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-          stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="4" />
-          <path d="M12 2v2" />
-          <path d="M12 20v2" />
-          <path d="m4.93 4.93 1.41 1.41" />
-          <path d="m17.66 17.66 1.41 1.41" />
-          <path d="M2 12h2" />
-          <path d="M20 12h2" />
-          <path d="m6.34 17.66-1.41 1.41" />
-          <path d="m19.07 4.93-1.41 1.41" />
-        </svg>
-      </button>
+      <div class="topbar-actions flex items-center gap-2">
+        <!-- Content width presets -->
+        <div id="content-width-control" class="content-width-control" role="group"
+          aria-label="Content width">
+          <button type="button" class="content-width-btn is-active" data-width="comfortable"
+            title="Comfortable" aria-label="Content width: Comfortable" aria-pressed="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round" aria-hidden="true">
+              <!-- narrow column -->
+              <rect x="8" y="4" width="8" height="16" rx="1" />
+            </svg>
+          </button>
+          <button type="button" class="content-width-btn" data-width="wide" title="Wide"
+            aria-label="Content width: Wide" aria-pressed="false">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round" aria-hidden="true">
+              <!-- medium column -->
+              <rect x="5" y="4" width="14" height="16" rx="1" />
+            </svg>
+          </button>
+          <button type="button" class="content-width-btn" data-width="full" title="Full width"
+            aria-label="Content width: Full" aria-pressed="false">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round" aria-hidden="true">
+              <!-- full column -->
+              <rect x="3" y="4" width="18" height="16" rx="1" />
+            </svg>
+          </button>
+        </div>
+        <button id="theme-toggle" class="icon-btn p-1.5 rounded-md hover:bg-hover transition-colors"
+          title="Toggle theme" aria-label="Toggle theme">
+          <svg id="theme-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2" />
+            <path d="M12 20v2" />
+            <path d="m4.93 4.93 1.41 1.41" />
+            <path d="m17.66 17.66 1.41 1.41" />
+            <path d="M2 12h2" />
+            <path d="M20 12h2" />
+            <path d="m6.34 17.66-1.41 1.41" />
+            <path d="m19.07 4.93-1.41 1.41" />
+          </svg>
+        </button>
+      </div>
     </header>
 
     <main class="layout flex-1 flex min-h-0">
