@@ -123,7 +123,7 @@ JSON errors use the envelope `{ "error": { "code", "message" } }`.
 ## Watch / live reload
 
 `deno task serve -w` starts a recursive filesystem watcher. On changes
-(debounced ~200ms), the index refreshes and an `event: reload` is broadcast
+(debounced ~1000ms), the index refreshes and an `event: reload` is broadcast
 over `/api/events`. The UI reconnects automatically and re-fetches the file
 list and the currently open file.
 

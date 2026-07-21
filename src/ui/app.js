@@ -206,13 +206,58 @@ function updateTocActiveFromScroll() {
   setTocActive(currentId);
 }
 
+// ---------- Content width presets ----------
+// Helpers must be defined before `state` initialization (const TDZ).
+const VALID_CONTENT_WIDTHS = new Set(["comfortable", "wide", "full"]);
+
+/**
+ * Validate a stored content width value, falling back to comfortable.
+ */
+function normalizeContentWidth(value) {
+  if (VALID_CONTENT_WIDTHS.has(value)) {
+    return value;
+  }
+  return "comfortable";
+}
+
 // ---------- App state ----------
 const state = {
   files: [], // [{relativePath, basename, kind, ...}]
   tree: null, // tree root
   selectedPath: null, // currently open file
   theme: localStorage.getItem("serve-md-theme") || "light",
+  contentWidth: normalizeContentWidth(localStorage.getItem("serve-md-content-width")),
 };
+
+const contentWidthControl = document.getElementById("content-width-control");
+const contentWidthButtons = contentWidthControl
+  ? Array.from(contentWidthControl.querySelectorAll(".content-width-btn"))
+  : [];
+
+/**
+ * Apply a content width preset: set the CSS hook, update control chrome,
+ * persist to localStorage, and keep app state in sync.
+ */
+function applyContentWidth(preset) {
+  const width = normalizeContentWidth(preset);
+  state.contentWidth = width;
+  document.documentElement.setAttribute("data-content-width", width);
+  localStorage.setItem("serve-md-content-width", width);
+
+  contentWidthButtons.forEach((btn) => {
+    const active = btn.dataset.width === width;
+    btn.classList.toggle("is-active", active);
+    btn.setAttribute("aria-pressed", String(active));
+  });
+}
+
+contentWidthButtons.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    applyContentWidth(btn.dataset.width);
+  });
+});
+
+applyContentWidth(state.contentWidth);
 
 // ---------- Theme ----------
 const themeIcon = document.getElementById("theme-icon");
