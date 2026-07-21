@@ -101,10 +101,7 @@ export class WatchCoordinator {
     }
     for await (const event of this.#watcher) {
       if (!this.#eventIsRelevant(event)) {
-        this.#logger.debug(
-          { kind: event.kind, paths: event.paths },
-          "watch event skipped (excluded path)",
-        );
+        // Silent: excluded paths (.git, node_modules, …) are expected noise.
         continue;
       }
       // Relevant event — debounce bursts
