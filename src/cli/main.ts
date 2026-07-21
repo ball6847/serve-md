@@ -16,6 +16,7 @@ import { WatchCoordinator } from "../service/watch_coordinator.ts";
 import { errorEnvelope, statusFor } from "../handler/error_mapper.ts";
 import type { Logger } from "../ports/logger.ts";
 import type { StaticAssetStore } from "../ports/static_asset_store.ts";
+import { resolveListenPort } from "../utils/resolve_listen_port.ts";
 
 export interface AppDeps {
   health: HealthHandler;
@@ -244,6 +245,30 @@ export async function main(argv: string[]): Promise<number> {
         }
       })();
 
+      // Prefer config.port; if busy, fall back to port 0 (OS assigns free port).
+      // Probe with a short-lived TCP bind — do not start HTTP serve to detect conflict.
+      const portResult = resolveListenPort(config.host, config.port);
+      if (portResult instanceof Error) {
+        logger.error(
+          {
+            errCode: "BIND_FAILED",
+            preferred: config.port,
+            host: config.host,
+            reason: portResult.message,
+          },
+          "failed to probe listen port",
+        );
+        console.error(`[BIND_FAILED] ${portResult.message}`);
+        exitCode = 1;
+        return;
+      }
+      if (portResult.usedFallback) {
+        logger.warn(
+          { preferred: portResult.preferred, host: config.host },
+          "preferred port in use; falling back to OS-assigned port (0)",
+        );
+      }
+
       // Listen. Plan 05: Hono fetch handler. We keep the process alive by
       // awaiting the server's `finished` promise (resolves when the server
       // closes) so `Deno.exit` at the bottom of main() does not terminate
@@ -251,10 +276,18 @@ export async function main(argv: string[]): Promise<number> {
       const server = Deno.serve(
         {
           hostname: config.host,
-          port: config.port,
+          port: portResult.port,
           onListen: ({ hostname, port }) => {
-            logger.info({ hostname, port }, "http server listening");
-            // Open browser if --open flag was set
+            logger.info(
+              {
+                hostname,
+                port,
+                preferred: config.port,
+                usedFallback: portResult.usedFallback,
+              },
+              "http server listening",
+            );
+            // Open browser if --open flag was set (uses actual bound port).
             if (config.open) {
               const url = `http://${hostname === "0.0.0.0" ? "localhost" : hostname}:${port}`;
               const cmd = Deno.build.os === "darwin"

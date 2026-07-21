@@ -19,7 +19,8 @@
   6. Light / dark theme.
   7. **Content width presets** (layout tool): user can tighten/enlarge reading width or fill the content pane; **same width handling for Markdown and HTML**.
   8. Optional live reload via `--watch` / `-w`.
-  9. Network bind: localhost by default; `--network` exposes on all interfaces (e.g. Tailscale).
+  9. Network bind: localhost by default; `--network` exposes on all interfaces (e.g. Tailscale). Preferred port (default `8787`) with OS-assigned free port fallback when busy.
+
 - **Feature Boundaries** (v1 **includes**):
   - Read-only serving and rendering of Markdown/HTML under the content root.
   - Client UI for explore → select → render.
@@ -55,7 +56,7 @@
 | Dot whitelist | Optional environment variable enables **whitelist-based** inclusion of specific dot-directory name patterns (e.g. allow `.context` if listed). Exact env name to be defined in implementation (`SERVE_MD_DOT_WHITELIST` or similar); comma-separated or multi-value list of directory basenames.                         |
 | Hard excludes | Always exclude well-known noise even if not dot-prefixed if present as common build trees is optional; **minimum bar**: all `.` segments excluded unless whitelisted. Recommended always-exclude of non-dot trees: `node_modules`, `dist`, `build`, `vendor`, `target` (implementation may use a small fixed deny list). |
 | HTTP bind     | Default: `127.0.0.1`. With `--network`: `0.0.0.0` (all interfaces).                                                                                                                                                                                                                                                      |
-| Port          | Default: `8787`. Optional `--port` for override.                                                                                                                                                                                                                                                                         |
+| Port          | Default: `8787`. Optional `--port` / `PORT` for preferred port. **Before** starting the HTTP server, probe the preferred port with a short-lived TCP bind (not HTTP serve). If free, listen on that port. If unavailable (`AddrInUse`), fall back to **port `0`** so the OS assigns any free port. Log preferred vs actual; `--open` uses the actual port from listen callback. No sequential port scan. |
 | Watch         | Off by default. `--watch` / `-w` enables filesystem watch on the content root for list refresh + open-file re-render.                                                                                                                                                                                                    |
 | Markdown out  | HTML fragment/page section with styles, highlighting, Mermaid, etc.                                                                                                                                                                                                                                                |
 | HTML out      | Original document bytes served into iframe `src` (or blob/src URL under same origin), relative assets resolvable under content root with path traversal protection.                                                                                                                                                      |
@@ -63,7 +64,7 @@
 #### User Interaction
 
 1. User starts CLI from a repository root (or any folder of interest).
-2. Browser opens (or user navigates to) `http://127.0.0.1:8787` (or host:port when using `--network`).
+2. Browser opens (or user navigates to) `http://127.0.0.1:8787` when the preferred port is free, or to the **actual** host:port logged at startup when the preferred port was busy and an OS-assigned port was used (or host:port when using `--network`).
 3. UI shows:
    - Mode toggle: **Search** | **Browse**.
    - Theme toggle: light / dark.
@@ -250,6 +251,8 @@
 - [ ] Chosen preset persists across reloads via `localStorage` (e.g. `serve-md-content-width`); invalid values fall back to Comfortable.
 - [ ] Active preset is indicated in the UI; control is theme-aware and keyboard-accessible (button/control has name/label).
 - [ ] Default listen address is `127.0.0.1:8787`; `--network` listens on `0.0.0.0`; port configurable.
+- [ ] **Port fallback**: if the preferred port (default `8787`, or `--port` / `PORT`) is free, the server listens on that port; if it is in use, the process does **not** exit solely for that reason — it binds with port `0` (OS-assigned free port), logs preferred vs actual port, and continues. Probe uses TCP listen/close, not a failed HTTP serve retry.
+- [ ] `--open` opens the browser to the **actual** bound port (including when OS-assigned).
 - [ ] `--watch` / `-w` refreshes file index and re-renders the open file on changes; without the flag, no watch requirement.
 - [ ] Files larger than 2MB show a warning banner but still open.
 - [ ] Broken Mermaid blocks show inline errors without failing the whole page.
@@ -277,7 +280,7 @@
 - [ ] User can open an HTML artifact with nav still available.
 - [ ] User can switch Comfortable → Wide → Full and see both Markdown and HTML use the same wider (or full) content column without a page reload.
 - [ ] User can expose the server on Tailscale via `--network` and open from another device (owner-trusted threat model).
-- [ ] README documents install/run: cwd behavior, flags (`--network`, `--watch`/`-w`, `--port`), port `8787`, dotfile policy and whitelist env.
+- [ ] README documents install/run: cwd behavior, flags (`--network`, `--watch`/`-w`, `--port`), preferred port `8787`, OS port-`0` fallback when preferred is busy, dotfile policy and whitelist env.
 
 ## Execution Phases
 
@@ -369,6 +372,7 @@ The following features were implemented during v1 development but were not speci
 | 5 (v1.1) | **Locked**: browser URL is `/{relative-path}` (not `/?file=`); JSON `GET /api/file/<relative-path>`; raw `GET /content/<relative-path>`; SPA shell fallback for non-reserved paths; reserved prefixes documented. |
 | 6 (v1.1) | **TOC scroll-spy specified**: TOC panel status updated (panel implemented; scroll-spy planned). Active section = exactly one TOC entry from content scroll position; client-only; hash on open; observer cleanup; no new API. |
 | 7 (v1.1) | **Content width presets**: 3-step topbar tool (Comfortable 880px · Wide 1120px · Full); **identical** max-width handling for Markdown and HTML via shared content host; default Comfortable; persist `localStorage`; client-only. |
+| 8 (v1.1) | **Port fallback**: probe preferred port with short-lived TCP bind before HTTP serve; if busy, bind port `0` (OS assigns free port); log actual port; `--open` uses actual port; no sequential scan. |
 
 ---
 
@@ -383,11 +387,12 @@ The following features were implemented during v1 development but were not speci
 | 5     | **Browser + API path-style**: open file URL is `/{rel}` (e.g. `/.context/plans/…/PLAN.md`), not `/?file=`; API `/api/file/<rel>`; raw `/content/<rel>`; no query file identity.                                                                                                                                                                                                                                      |
 | 6     | **TOC scroll-spy**: auto-mark active TOC section while scrolling Markdown content; acceptance criteria + observer lifecycle; TOC panel marked implemented, scroll-spy next.                                                                                                                                                                                                                                        |
 | 7     | **Content width presets**: Comfortable / Wide / Full; shared for Markdown + HTML; topbar + localStorage; default Comfortable (880px); no per-file or free-form width.                                                                                                                                                                                                                                               |
+| 8     | **Port fallback**: preferred port free → use it; busy → port `0` (OS-assigned); probe via TCP listen/close before `Deno.serve`; log preferred vs actual; `--open` uses actual port.                                                                                                                                                                                                                                 |
 
 ---
 
 **Document Version**: 1.1  
 **Created**: 2026-07-19  
 **Revised**: 2026-07-21  
-**Clarification Rounds**: 7  
+**Clarification Rounds**: 8  
 **Quality Score**: 96/100
