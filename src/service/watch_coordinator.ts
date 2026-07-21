@@ -1,5 +1,7 @@
+import { relative, SEPARATOR } from "@std/path";
 import type { Logger } from "../ports/logger.ts";
 import { to } from "await-to-js";
+import { ContentPath } from "../domain/content_path.ts";
 import { ReadFailedError } from "../domain/errors.ts";
 import { trySync } from "../utils/try_sync.ts";
 import type { ContentIndexService } from "./content_index.ts";
@@ -7,6 +9,28 @@ import type { ContentIndexService } from "./content_index.ts";
 export interface WatchOptions {
   /** Debounce window in ms. */
   debounceMs?: number;
+  /**
+   * Dot-directory basenames allowed in the content index (same as index).
+   * Used to decide whether a watch event should trigger a refresh.
+   */
+  dotWhitelist?: string[];
+}
+
+/**
+ * True if a path relative to the content root should trigger a watch refresh.
+ *
+ * Uses the same exclusion policy as the content index: dot segments (unless
+ * whitelisted) and always-exclude basenames (`node_modules`, `dist`, …).
+ * The content root itself (`""` / `"."`) is always relevant.
+ */
+export function isWatchPathRelevant(
+  relativePath: string,
+  dotWhitelist: string[],
+): boolean {
+  if (relativePath === "" || relativePath === ".") {
+    return true;
+  }
+  return !new ContentPath(relativePath).isExcluded(dotWhitelist);
 }
 
 /**
@@ -14,6 +38,7 @@ export interface WatchOptions {
  * Emits "change" notifications via the registered callback.
  *
  * Uses Deno.watchFs under the hood. Debounces bursts of events.
+ * Events whose paths are all excluded (dot dirs, vendor dirs) are ignored.
  *
  * Lifecycle: call `start()` to begin watching, `stop()` to clean up.
  */
@@ -21,6 +46,8 @@ export class WatchCoordinator {
   readonly #index: ContentIndexService;
   readonly #logger: Logger;
   readonly #debounceMs: number;
+  readonly #dotWhitelist: string[];
+  #contentRoot = "";
   #watcher: Deno.FsWatcher | null = null;
   #timer: number | null = null;
   #listeners: Array<() => void> = [];
@@ -29,6 +56,7 @@ export class WatchCoordinator {
     this.#index = index;
     this.#logger = logger;
     this.#debounceMs = options.debounceMs ?? 1000;
+    this.#dotWhitelist = options.dotWhitelist ?? [];
   }
 
   onReload(listener: () => void): void {
@@ -36,6 +64,7 @@ export class WatchCoordinator {
   }
 
   start(contentRoot: string): Promise<void> {
+    this.#contentRoot = contentRoot;
     (async () => {
       // Deno.watchFs() is synchronous — use trySync for consistent error handling.
       const [watchErr, watcher] = trySync(() => Deno.watchFs(contentRoot, { recursive: true }));
@@ -70,8 +99,15 @@ export class WatchCoordinator {
     if (!this.#watcher) {
       return;
     }
-    for await (const _event of this.#watcher) {
-      // any event — debounce
+    for await (const event of this.#watcher) {
+      if (!this.#eventIsRelevant(event)) {
+        this.#logger.debug(
+          { kind: event.kind, paths: event.paths },
+          "watch event skipped (excluded path)",
+        );
+        continue;
+      }
+      // Relevant event — debounce bursts
       if (this.#timer !== null) {
         clearTimeout(this.#timer);
       }
@@ -79,6 +115,41 @@ export class WatchCoordinator {
         void this.#refresh();
       }, this.#debounceMs) as unknown as number;
     }
+  }
+
+  /**
+   * Refresh if any event path is not excluded. Empty path list is treated as
+   * relevant (conservative — some platforms omit paths).
+   */
+  #eventIsRelevant(event: Deno.FsEvent): boolean {
+    if (event.paths.length === 0) {
+      return true;
+    }
+    for (const abs of event.paths) {
+      const rel = this.#toRelative(abs);
+      if (rel === null) {
+        continue;
+      }
+      if (isWatchPathRelevant(rel, this.#dotWhitelist)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Map absolute FS path to posix-relative under content root, or null if outside. */
+  #toRelative(absPath: string): string | null {
+    const [err, relNative] = trySync(() => relative(this.#contentRoot, absPath));
+    if (err) {
+      return null;
+    }
+    if (relNative.startsWith("..") || relNative === "..") {
+      return null;
+    }
+    if (SEPARATOR === "/") {
+      return relNative;
+    }
+    return relNative.split(SEPARATOR).join("/");
   }
 
   async #refresh(): Promise<void> {

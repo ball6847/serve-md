@@ -207,7 +207,9 @@ export async function main(argv: string[]): Promise<number> {
       // refreshes the index on filesystem changes, and the EventsHandler
       // exposes an SSE stream so the UI can reload.
       const watcher = config.watch
-        ? new WatchCoordinator(index, logger.child({ component: "watch" }))
+        ? new WatchCoordinator(index, logger.child({ component: "watch" }), {
+          dotWhitelist: config.dotWhitelist,
+        })
         : null;
       if (watcher) {
         await watcher.start(config.contentRoot);
