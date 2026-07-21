@@ -17,13 +17,15 @@
   4. HTML rendering: app chrome (navigation) remains visible; document body loads in an **iframe** with scripts and relative assets allowed (owner-trusted files).
   5. Default open target: `README.md` → `readme.md` → `README`; otherwise empty “pick a file” state.
   6. Light / dark theme.
-  7. Optional live reload via `--watch` / `-w`.
-  8. Network bind: localhost by default; `--network` exposes on all interfaces (e.g. Tailscale).
+  7. **Content width presets** (layout tool): user can tighten/enlarge reading width or fill the content pane; **same width handling for Markdown and HTML**.
+  8. Optional live reload via `--watch` / `-w`.
+  9. Network bind: localhost by default; `--network` exposes on all interfaces (e.g. Tailscale).
 - **Feature Boundaries** (v1 **includes**):
   - Read-only serving and rendering of Markdown/HTML under the content root.
   - Client UI for explore → select → render.
   - Structured errors and non-fatal render failures (Mermaid).
   - Soft warning when a selected file is larger than 2MB.
+  - Client-only content width layout presets (shared for Markdown + HTML).
 - **Feature Boundaries** (v1 **excludes**):
   - Authentication / password protection.
   - Editing, write-back, or git operations.
@@ -32,11 +34,14 @@
   - Full-text content search (filename fuzzy search only).
   - PDF/export pipeline.
   - Callouts and math rendering.
+  - Per-file or per-kind width settings (one global preference only).
+  - Free-form / pixel-slider custom width (presets only).
 - **User Scenarios**:
   1. From a project root: start the server, open the browser, land on `README.md` if present, switch to Search, type part of a plan name, open and read it.
   2. Browse mode: expand only folders that lead to Markdown/HTML, open an HTML report; navigation chrome stays visible while the report runs in an iframe.
   3. On Tailscale: start with `--network`, open from another machine on the tailnet, re-read planning docs without cloning extra tooling.
   4. With `--watch`: edit an artifact in the editor; open file and file list refresh without a full manual reload cycle.
+  5. Reading a wide table or HTML report: use the content-width control to switch from Comfortable → Wide → Full so the document uses more of the content pane; switch back for prose-heavy Markdown.
 
 ### Detailed Requirements
 
@@ -62,6 +67,7 @@
 3. UI shows:
    - Mode toggle: **Search** | **Browse**.
    - Theme toggle: light / dark.
+   - **Content width** control (presets): Comfortable | Wide | Full (see **Content width presets** below).
    - Content area for rendered Markdown or HTML iframe.
 4. **Default selection**:
    - If `README.md` exists at content root → open it.
@@ -71,7 +77,8 @@
 6. Browse mode: tree or hierarchical list of folders that contain or lead to content files; select opens file.
 7. Markdown path: render in content panel with TOC / anchors as available. As the user scrolls the Markdown content, the TOC sidebar **scroll-spy** marks the heading currently in view as active (see **TOC scroll-spy** under Detailed Requirements).
 8. HTML path: keep shell; body in iframe; scripts and relative assets allowed.
-9. Errors: in-app panels; process stays up. Mermaid failures are inline error blocks.
+9. Content width: user picks a preset from the topbar; **Markdown body and HTML iframe share the same content-host max-width** (no separate controls or values per kind).
+10. Errors: in-app panels; process stays up. Mermaid failures are inline error blocks.
 
 **Default-open resolution (authoritative)**:
 
@@ -95,6 +102,26 @@
 | Scope | Client-only enhancement; no new API fields required beyond existing `toc` + heading `id`s in rendered HTML. |
 | Non-goals (v1.x) | Auto-scroll the TOC rail to keep the active item visible is **nice-to-have**, not required. Nested expand/collapse of TOC levels is out of scope. HTML iframe documents do not get app TOC/scroll-spy. |
 
+**Content width presets (authoritative)** — Markdown **and** HTML (identical handling):
+
+| Concern | Specification |
+| ------- | ------------- |
+| Purpose | Let the reader enlarge, keep comfortable, or fill the content pane without free-form pixel tweaking. Useful for wide tables, HTML reports, and long prose. |
+| Scope | **One global layout preference** applied to the shared content host that wraps **both** rendered Markdown and the HTML iframe. Switching file kind must **not** change width unless the user changes the preset. |
+| Presets (exactly 3) | **Comfortable** · **Wide** · **Full** — discrete steps only (no continuous slider, no custom px input). |
+| Comfortable (default) | Reading-friendly column matching today’s layout: `max-width: 880px`, horizontally centered in the content pane. First visit with no stored preference uses Comfortable. |
+| Wide | Intermediate step wider than Comfortable: `max-width: 1120px`, still centered. |
+| Full | No artificial max-width cap: content host uses the full width of the content pane (between sidebar and TOC rail when present). Horizontal padding of the content pane may remain. |
+| Same path for both kinds | Width is applied on the **content host** (or equivalent single wrapper), not separately on `.markdown-body` vs `iframe`. HTML iframe remains `width: 100%` of that host so it tracks the preset. |
+| UI control | Topbar control next to theme toggle (segmented control, cycle button, or compact menu). Labels or accessible names must identify the three presets. Active preset is visually indicated. Theme-aware (light/dark). |
+| Persistence | `localStorage` key (e.g. `serve-md-content-width`); restore on load before first paint if practical (same anti-FOUC idea as theme). Invalid/missing value → Comfortable. |
+| Apply timing | Changing preset updates layout **immediately** without reloading the open file or re-fetching content. Survives file navigation and Search/Browse mode switches. |
+| Empty / error state | Preset still applies to the content host when empty state or in-app error is shown (consistent chrome). |
+| Narrow viewports | On small screens where the content pane is already ≤ Comfortable width, presets may have little or no visible effect; Full remains valid. No separate mobile-only preset set required. |
+| TOC interaction | Width controls the **content column** only; sidebar and TOC rail widths are unchanged. Full uses remaining space after rails. |
+| Scope (tech) | **Client-only**; no new API fields, no server config flag. |
+| Non-goals | Per-document remembered width; different Markdown vs HTML defaults; zoom/font-size control; vertical density; exporting print width. |
+
 #### Data Requirements
 
 - In-memory file index: relative path, basename, extension/kind (`markdown` | `html`), optional size, optional mtime.
@@ -116,6 +143,9 @@
 | HTML with absolute external assets | Browser loads them as normal (owner-trusted); no proxy requirement in v1.    |
 | Symlinks                           | Follow only if resolved path stays inside content root; otherwise skip/deny. |
 | Watch storms                       | Debounce reload events.                                                      |
+| Invalid stored width preset        | Fall back to Comfortable; do not break shell.                                |
+| Viewport narrower than preset cap  | Content host is `width: 100%` of pane up to the preset max-width (no overflow forced by the cap). |
+| HTML then Markdown (or reverse)    | Same preset remains active; width must not jump when kind changes.           |
 
 ## Design Decisions
 
@@ -128,7 +158,7 @@
   - **Index / scan service**: build content-only tree and flat list for search.
   - **Render service**: Markdown → safe HTML pipeline (highlight, tables, mermaid placeholders, footnotes); HTML mode metadata for iframe URL.
   - **HTTP API**: health/ready, file list/tree, file content/raw, rendered markdown endpoint or server-driven page, static assets for UI and content-relative assets.
-  - **Web UI**: shell with Search/Browse toggle, theme, content panel / iframe, TOC sidebar with scroll-spy active section (Markdown only), live-reload client hook when watch enabled.
+  - **Web UI**: shell with Search/Browse toggle, theme, **content width presets** (Comfortable / Wide / Full on shared content host for Markdown + HTML), content panel / iframe, TOC sidebar with scroll-spy active section (Markdown only), live-reload client hook when watch enabled.
 - **Data Storage**: None durable beyond filesystem of the user’s project.
 - **Interface Design** (authoritative URI scheme — path-style for file identity):
 
@@ -214,6 +244,11 @@
 - [ ] Scroll-spy observers/listeners are cleaned up on file change / TOC hide (no leaks across navigations).
 - [ ] Selecting an HTML file keeps navigation chrome visible and shows document content in an iframe; scripts and relative assets work for same-tree files.
 - [ ] Light and dark themes are available and persist for the session (persistence across reloads preferred if trivial).
+- [ ] **Content width presets**: topbar control exposes exactly three presets — Comfortable (`max-width: 880px`), Wide (`max-width: 1120px`), Full (no max-width cap / fill content pane).
+- [ ] Default preset is Comfortable when no valid `localStorage` value exists.
+- [ ] Choosing a preset applies **immediately** to the shared content host for **both** Markdown and HTML iframe (identical width handling); switching file kind does not reset or diverge width.
+- [ ] Chosen preset persists across reloads via `localStorage` (e.g. `serve-md-content-width`); invalid values fall back to Comfortable.
+- [ ] Active preset is indicated in the UI; control is theme-aware and keyboard-accessible (button/control has name/label).
 - [ ] Default listen address is `127.0.0.1:8787`; `--network` listens on `0.0.0.0`; port configurable.
 - [ ] `--watch` / `-w` refreshes file index and re-renders the open file on changes; without the flag, no watch requirement.
 - [ ] Files larger than 2MB show a warning banner but still open.
@@ -240,6 +275,7 @@
 
 - [ ] User can open a real AI-planning repo and read Markdown plans without seeing application source in the navigator.
 - [ ] User can open an HTML artifact with nav still available.
+- [ ] User can switch Comfortable → Wide → Full and see both Markdown and HTML use the same wider (or full) content column without a page reload.
 - [ ] User can expose the server on Tailscale via `--network` and open from another device (owner-trusted threat model).
 - [ ] README documents install/run: cwd behavior, flags (`--network`, `--watch`/`-w`, `--port`), port `8787`, dotfile policy and whitelist env.
 
@@ -275,8 +311,8 @@
 **Goal**: Beautiful Markdown + HTML iframe shell with navigation modes.
 
 - [ ] Markdown pipeline (highlight, tables, images, mermaid, footnotes, anchors, TOC).
-- [ ] UI: Search (fuzzy) | Browse toggle, theme, content panel, TOC sidebar + scroll-spy active section, 2MB warning, error panels.
-- [ ] HTML iframe integration and relative asset serving.
+- [ ] UI: Search (fuzzy) | Browse toggle, theme, **content width presets** (Comfortable / Wide / Full; shared host for md+html; localStorage), content panel, TOC sidebar + scroll-spy active section, 2MB warning, error panels.
+- [ ] HTML iframe integration and relative asset serving (iframe tracks the same content-host width as Markdown).
 - [ ] Optional watch + client reload when `-w` set.
 
 **Deliverables**: End-to-end explore → render loop matching Glow-for-web intent.  
@@ -311,6 +347,7 @@ This revision updates the v1.0 PRD based on implementation findings and product 
 | **Math rendering** | **Removed from scope** | KaTeX / MathJax integration will not be supported in v1. Math rendering adds a significant client-side dependency and is not required for the core AI-planning-artifact use case. |
 | **TOC** | **Implemented (panel); scroll-spy planned** | Server computes `toc` entries; UI right-rail “On this page” panel lists headings and click-to-scroll. **Scroll-spy** (auto-mark active TOC entry from content scroll position) is specified under **TOC panel & scroll-spy** and is the next TOC enhancement. |
 | **File URI shape** | **Path-style everywhere (locked)** | Browser URL for the open document is `/{relative-path}` (e.g. `http://localhost:8787/.context/plans/…/PLAN.md`), **not** `/?file=…`. JSON API is `GET /api/file/<relative-path>`; raw is `GET /content/<relative-path>`. No query-string file identity. Full refresh of a path serves the reader shell (SPA fallback), not raw bytes. Reserved prefixes: `/api`, `/content`, `/ui`, `/health`, `/ready`. |
+| **Content width presets** | **3-step client tool; shared for md + html (locked)** | Topbar control cycles/selects **Comfortable** (880px, default) · **Wide** (1120px) · **Full** (fill content pane). Applied on the single content host so Markdown and HTML iframe use the **exact same** max-width handling. Persist via `localStorage`. No per-file settings, no free-form slider, no server API. |
 
 ### Beyond PRD Features (Implemented)
 
@@ -331,6 +368,7 @@ The following features were implemented during v1 development but were not speci
 | 4 (v1.1) | **Removed**: humanized labels, callouts, math rendering. **Retained as planned**: TOC. **Documented**: beyond-PRD features that were implemented (frontmatter display, markdown deep-linking, mermaid pan/zoom+fullscreen, `/api/meta`, `.markdown` extension). |
 | 5 (v1.1) | **Locked**: browser URL is `/{relative-path}` (not `/?file=`); JSON `GET /api/file/<relative-path>`; raw `GET /content/<relative-path>`; SPA shell fallback for non-reserved paths; reserved prefixes documented. |
 | 6 (v1.1) | **TOC scroll-spy specified**: TOC panel status updated (panel implemented; scroll-spy planned). Active section = exactly one TOC entry from content scroll position; client-only; hash on open; observer cleanup; no new API. |
+| 7 (v1.1) | **Content width presets**: 3-step topbar tool (Comfortable 880px · Wide 1120px · Full); **identical** max-width handling for Markdown and HTML via shared content host; default Comfortable; persist `localStorage`; client-only. |
 
 ---
 
@@ -344,11 +382,12 @@ The following features were implemented during v1 development but were not speci
 | 4     | v1.1: removed humanized labels, callouts, math; TOC planned; documented beyond-PRD features.                                                                                                                                                                                                                                                                                                                      |
 | 5     | **Browser + API path-style**: open file URL is `/{rel}` (e.g. `/.context/plans/…/PLAN.md`), not `/?file=`; API `/api/file/<rel>`; raw `/content/<rel>`; no query file identity.                                                                                                                                                                                                                                      |
 | 6     | **TOC scroll-spy**: auto-mark active TOC section while scrolling Markdown content; acceptance criteria + observer lifecycle; TOC panel marked implemented, scroll-spy next.                                                                                                                                                                                                                                        |
+| 7     | **Content width presets**: Comfortable / Wide / Full; shared for Markdown + HTML; topbar + localStorage; default Comfortable (880px); no per-file or free-form width.                                                                                                                                                                                                                                               |
 
 ---
 
 **Document Version**: 1.1  
 **Created**: 2026-07-19  
-**Revised**: 2026-07-20  
-**Clarification Rounds**: 6  
-**Quality Score**: 95/100
+**Revised**: 2026-07-21  
+**Clarification Rounds**: 7  
+**Quality Score**: 96/100
