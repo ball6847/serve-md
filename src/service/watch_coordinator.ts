@@ -28,7 +28,7 @@ export class WatchCoordinator {
   constructor(index: ContentIndexService, logger: Logger, options: WatchOptions = {}) {
     this.#index = index;
     this.#logger = logger;
-    this.#debounceMs = options.debounceMs ?? 200;
+    this.#debounceMs = options.debounceMs ?? 1000;
   }
 
   onReload(listener: () => void): void {
