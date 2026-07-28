@@ -534,6 +534,39 @@ body {
   border-color: var(--border);
 }
 
+/* Scroll-to-top button */
+.scroll-top-btn {
+  position: sticky;
+  bottom: 1rem;
+  align-self: flex-end;
+  margin-top: auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  flex-shrink: 0;
+}
+.scroll-top-btn:hover {
+  background: var(--hover);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.scroll-top-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.scroll-top-btn.hidden {
+  display: none;
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;

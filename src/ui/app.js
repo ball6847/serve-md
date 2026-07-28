@@ -88,20 +88,19 @@ function showToc(entries) {
     tocNav.appendChild(a);
   }
   tocPanel.classList.remove("hidden");
-  // Start scroll-spy for these heading ids
-  startTocScrollSpy(entries.map((e) => e.id));
+  // Start content tracker for these heading ids
+  startContentTracker(entries.map((e) => e.id));
 }
 
 function hideToc() {
-  stopTocScrollSpy();
+  stopContentTracker();
   tocNav.innerHTML = "";
   tocPanel.classList.add("hidden");
 }
 
-// ---------- TOC scroll-spy ----------
-let tocScrollSpyActive = false;
-let tocHeadingIds = [];
-let tocScrollHandler = null;
+// ---------- Content scroll tracker (TOC spy + hash sync + scroll-to-top) ----------
+let contentHeadingIds = [];
+let contentScrollHandler = null;
 
 function setTocActive(id) {
   const links = tocNav.querySelectorAll("a");
@@ -117,73 +116,21 @@ function setTocActive(id) {
   }
 }
 
-function startTocScrollSpy(headingIds) {
-  stopTocScrollSpy();
-  tocHeadingIds = headingIds;
-
-  // Don't run spy if TOC panel is not displayed (hidden class or narrow viewport)
-  if (
-    tocPanel.classList.contains("hidden") ||
-    globalThis.getComputedStyle(tocPanel).display === "none"
-  ) {
-    return;
+/**
+ * Compute the current heading id based on scroll position.
+ * Returns { id: string|null, aboveFirst: boolean }.
+ * aboveFirst is true when scrolled above the first heading (hash should be cleared).
+ */
+function computeCurrentHeadingId(headingIds, contentSection) {
+  if (!contentSection || headingIds.length === 0) {
+    return { id: null, aboveFirst: true };
   }
-
-  const contentSection = document.querySelector("section.content");
-  if (!contentSection) return;
-
-  const headingElements = headingIds
-    .map((id) => document.getElementById(id))
-    .filter((el) => el !== null);
-
-  if (headingElements.length === 0) return;
-
-  tocScrollSpyActive = true;
-
-  // Throttled scroll listener using requestAnimationFrame
-  let ticking = false;
-  tocScrollHandler = () => {
-    if (!ticking) {
-      requestAnimationFrame(() => {
-        updateTocActiveFromScroll();
-        ticking = false;
-      });
-      ticking = true;
-    }
-  };
-
-  contentSection.addEventListener("scroll", tocScrollHandler, { passive: true });
-
-  // Initial update after layout settles (handles hash-on-open)
-  requestAnimationFrame(() => {
-    updateTocActiveFromScroll();
-  });
-}
-
-function stopTocScrollSpy() {
-  if (tocScrollHandler) {
-    const contentSection = document.querySelector("section.content");
-    if (contentSection) {
-      contentSection.removeEventListener("scroll", tocScrollHandler);
-    }
-    tocScrollHandler = null;
-  }
-  tocScrollSpyActive = false;
-  tocHeadingIds = [];
-  setTocActive(null);
-}
-
-function updateTocActiveFromScroll() {
-  if (!tocScrollSpyActive || tocHeadingIds.length === 0) return;
-
-  const contentSection = document.querySelector("section.content");
-  if (!contentSection) return;
 
   const scrollTop = contentSection.scrollTop;
   const offset = 48; // Offset from top of content area (topbar height)
   let currentId = null;
 
-  for (const id of tocHeadingIds) {
+  for (const id of headingIds) {
     const el = document.getElementById(id);
     if (!el) continue;
     const rect = el.getBoundingClientRect();
@@ -198,12 +145,117 @@ function updateTocActiveFromScroll() {
     }
   }
 
-  // If none found (scrolled above first heading), use first heading
-  if (currentId === null && tocHeadingIds.length > 0) {
-    currentId = tocHeadingIds[0];
+  // If none found, we're above the first heading
+  const aboveFirst = currentId === null;
+  // TOC fallback: mark first heading active when above it
+  if (aboveFirst && headingIds.length > 0) {
+    currentId = headingIds[0];
   }
 
-  setTocActive(currentId);
+  return { id: currentId, aboveFirst };
+}
+
+/**
+ * Start the unified content scroll tracker for Markdown documents.
+ * Handles TOC active marking, URL hash sync, and scroll-to-top button visibility.
+ * Runs for every Markdown open (even when TOC panel is hidden on narrow viewports).
+ */
+function startContentTracker(headingIds) {
+  stopContentTracker();
+  contentHeadingIds = headingIds;
+
+  const contentSection = document.querySelector("section.content");
+  if (!contentSection) return;
+
+  const scrollTopBtn = document.getElementById("scroll-top-btn");
+  const hasHeadings = headingIds.length > 0;
+
+  // Throttled scroll listener using requestAnimationFrame
+  let ticking = false;
+  let lastHash = "";
+  contentScrollHandler = () => {
+    if (!ticking) {
+      requestAnimationFrame(() => {
+        const { id, aboveFirst } = computeCurrentHeadingId(contentHeadingIds, contentSection);
+
+        // (a) TOC active marking — only when TOC panel is visible
+        if (
+          !tocPanel.classList.contains("hidden") &&
+          globalThis.getComputedStyle(tocPanel).display !== "none"
+        ) {
+          setTocActive(id);
+        }
+
+        // (b) Hash sync via replaceState — only when hash actually changed
+        if (hasHeadings) {
+          const newHash = aboveFirst ? "" : (id ? `#${id}` : "");
+          if (newHash !== lastHash) {
+            const url = new URL(globalThis.location.href);
+            url.hash = aboveFirst ? "" : id;
+            history.replaceState(null, "", url.toString());
+            lastHash = newHash;
+          }
+        }
+
+        // (c) Scroll-to-top button visibility — show after ~1 viewport of scrolling
+        if (scrollTopBtn) {
+          const threshold = contentSection.clientHeight;
+          if (contentSection.scrollTop > threshold) {
+            scrollTopBtn.classList.remove("hidden");
+          } else {
+            scrollTopBtn.classList.add("hidden");
+          }
+        }
+
+        ticking = false;
+      });
+      ticking = true;
+    }
+  };
+
+  contentSection.addEventListener("scroll", contentScrollHandler, { passive: true });
+
+  // Initial update after layout settles
+  requestAnimationFrame(() => {
+    const { id, aboveFirst } = computeCurrentHeadingId(contentHeadingIds, contentSection);
+    if (
+      !tocPanel.classList.contains("hidden") &&
+      globalThis.getComputedStyle(tocPanel).display !== "none"
+    ) {
+      setTocActive(id);
+    }
+    if (hasHeadings) {
+      const url = new URL(globalThis.location.href);
+      url.hash = aboveFirst ? "" : id;
+      history.replaceState(null, "", url.toString());
+      lastHash = url.hash;
+    }
+    if (scrollTopBtn) {
+      if (contentSection.scrollTop > contentSection.clientHeight) {
+        scrollTopBtn.classList.remove("hidden");
+      } else {
+        scrollTopBtn.classList.add("hidden");
+      }
+    }
+  });
+}
+
+function stopContentTracker() {
+  if (contentScrollHandler) {
+    const contentSection = document.querySelector("section.content");
+    if (contentSection) {
+      contentSection.removeEventListener("scroll", contentScrollHandler);
+    }
+    contentScrollHandler = null;
+  }
+  contentHeadingIds = [];
+  setTocActive(null);
+
+  // Hide scroll-to-top button
+  const scrollTopBtn = document.getElementById("scroll-top-btn");
+  if (scrollTopBtn) {
+    scrollTopBtn.classList.add("hidden");
+  }
 }
 
 // ---------- Content width presets ----------
@@ -258,6 +310,21 @@ contentWidthButtons.forEach((btn) => {
 });
 
 applyContentWidth(state.contentWidth);
+
+// ---------- Scroll-to-top button ----------
+const scrollTopBtn = document.getElementById("scroll-top-btn");
+if (scrollTopBtn) {
+  scrollTopBtn.addEventListener("click", () => {
+    const contentSection = document.querySelector("section.content");
+    if (contentSection) {
+      contentSection.scrollTo({ top: 0, behavior: "smooth" });
+      // Clear hash
+      const url = new URL(globalThis.location.href);
+      url.hash = "";
+      history.replaceState(null, "", url.toString());
+    }
+  });
+}
 
 // ---------- Theme ----------
 const themeIcon = document.getElementById("theme-icon");
@@ -468,7 +535,7 @@ function capitalize(s) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-/** Render mermaid diagrams in the content area. */
+/** Render mermaid diagrams in the content area. Returns a promise that resolves when done. */
 async function renderMermaid() {
   if (typeof mermaid === "undefined") {
     // Mermaid not loaded yet, wait and retry
@@ -711,10 +778,38 @@ async function openFile(path, updateUrl = true) {
       showToc(meta.toc);
     } else {
       hideToc();
+      // Start tracker with empty heading list so scroll-to-top button still works
+      startContentTracker([]);
     }
 
-    // Render mermaid diagrams
-    renderMermaid();
+    // Restore scroll position from URL hash after render
+    const hash = globalThis.location.hash.replace("#", "");
+    if (hash) {
+      const target = document.getElementById(hash);
+      if (target) {
+        const contentSection = document.querySelector("section.content");
+        if (contentSection) {
+          // Instant scroll on load (no smooth animation)
+          target.scrollIntoView({ behavior: "instant", block: "start" });
+          // Mark matching TOC entry active
+          setTocActive(hash);
+        }
+      }
+    }
+
+    // Render mermaid diagrams, then settle re-scroll if hash is still present
+    renderMermaid().then(() => {
+      if (hash) {
+        const target = document.getElementById(hash);
+        if (target) {
+          const contentSection = document.querySelector("section.content");
+          if (contentSection) {
+            // One settle re-scroll after async layout (handles anchor shift from diagrams/images)
+            target.scrollIntoView({ behavior: "instant", block: "start" });
+          }
+        }
+      }
+    });
   }
 }
 
