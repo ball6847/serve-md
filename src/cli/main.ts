@@ -1,7 +1,6 @@
 import { Command } from "cliffy";
 import { Hono } from "hono";
-import { to } from "await-to-js";
-import { trySync } from "../utils/try_sync.ts";
+import denoJson from "../../deno.json" with { type: "json" };
 import { load } from "dotenv";
 import { parseConfig, type RawFlags } from "../config/load_config.ts";
 import type { AppConfig } from "../config/schema.ts";
@@ -32,20 +31,9 @@ export interface AppDeps {
   brand: string;
 }
 
-/** Read version from deno.json (relative to this script). */
-async function getVersion(): Promise<string> {
-  const denoJsonPath = new URL("../../deno.json", import.meta.url);
-  const [err, content] = await to(Deno.readTextFile(denoJsonPath));
-  if (err) {
-    return "unknown";
-  }
-  // pi-lens-ignore: unchecked-throwing-call
-  const [parseErr, parsed] = trySync(() => JSON.parse(content as string));
-  if (parseErr) {
-    return "unknown";
-  }
-  const json = parsed as { version?: string };
-  return json.version || "unknown";
+/** Version read from deno.json at build time (bundled with the app). */
+function getVersion(): string {
+  return (denoJson as { version?: string }).version || "unknown";
 }
 
 /** Extract the wildcard portion of a splat route path. */
