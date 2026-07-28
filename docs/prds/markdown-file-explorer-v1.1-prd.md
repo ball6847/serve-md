@@ -13,7 +13,7 @@
 - **Core Features**:
   1. Recursive scan of content root (default: process CWD) for content files only (`.md`, `.html`, `.htm`).
   2. Two navigation modes (toggle): **Search** (fzf-style filename fuzzy search) and **Browse** (directory tree/list of content-only paths).
-  3. Markdown rendering (best-effort): GFM-style content, syntax highlighting, images, tables, Mermaid, footnotes, heading anchors, table of contents with **scroll-spy active section** highlighting in the TOC sidebar.
+  3. Markdown rendering (best-effort): GFM-style content, syntax highlighting, images, tables, Mermaid, footnotes, heading anchors, table of contents with **scroll-spy active section** highlighting in the TOC sidebar, **URL hash tracking of the reading position** (refresh restores the section, never jumps to top), and a **scroll-to-top button**.
   4. HTML rendering: app chrome (navigation) remains visible; document body loads in an **iframe** with scripts and relative assets allowed (owner-trusted files).
   5. Default open target: `README.md` → `readme.md` → `README`; otherwise empty “pick a file” state.
   6. Light / dark theme.
@@ -76,7 +76,7 @@
    - Else if `README` exists (extensionless file named exactly `README`) → open it **only if** it is treated as a readable text artifact; if product limits nav to md/html/htm only, then **README without extension is out of nav list** unless implementation special-cases default open. **Product decision**: default-open candidates are `README.md`, then `readme.md` only among scanned types; bare `README` is attempted as default-open if present on disk as a file, but need not appear in the filtered file index unless it matches allowed extensions. Prefer simpler rule: **default-open only `README.md` then `readme.md`; if neither, “pick a file”.** Bare `README` from user answer is interpreted as third priority only when the file exists; if it has no allowed extension it may still be opened as plain/markdown best-effort for default only—**final simple rule adopted below**.
 5. Search mode: fzf-style fuzzy match against relative paths / basenames; keyboard-friendly list; select opens file.
 6. Browse mode: tree or hierarchical list of folders that contain or lead to content files; select opens file.
-7. Markdown path: render in content panel with TOC / anchors as available. As the user scrolls the Markdown content, the TOC sidebar **scroll-spy** marks the heading currently in view as active (see **TOC scroll-spy** under Detailed Requirements).
+7. Markdown path: render in content panel with TOC / anchors as available. As the user scrolls the Markdown content, the TOC sidebar **scroll-spy** marks the heading currently in view as active (see **TOC scroll-spy** under Detailed Requirements) and the **URL hash follows the current section** so refresh restores the reading position (see **Anchor tracking & scroll-to-top** under Detailed Requirements).
 8. HTML path: keep shell; body in iframe; scripts and relative assets allowed.
 9. Content width: user picks a preset from the topbar; **Markdown body and HTML iframe share the same content-host max-width** (no separate controls or values per kind).
 10. Errors: in-app panels; process stays up. Mermaid failures are inline error blocks.
@@ -102,6 +102,24 @@
 | Narrow viewports | If the TOC rail is hidden (responsive breakpoint), scroll-spy need not run (no visible target). |
 | Scope | Client-only enhancement; no new API fields required beyond existing `toc` + heading `id`s in rendered HTML. |
 | Non-goals (v1.x) | Auto-scroll the TOC rail to keep the active item visible is **nice-to-have**, not required. Nested expand/collapse of TOC levels is out of scope. HTML iframe documents do not get app TOC/scroll-spy. |
+
+**Anchor tracking & scroll-to-top (authoritative)** — Markdown documents only:
+
+| Concern | Specification |
+| ------- | ------------- |
+| Purpose | The URL always reflects the section the user is reading, so a refresh (or a shared/bookmarked link) returns to that section instead of jumping back to the top. A scroll-to-top button compensates for content no longer starting at the top on reload. |
+| **Hash tracking** | While the user scrolls Markdown content, the URL hash is updated to the `id` of the **current reading section** — the exact same current-section computation as TOC scroll-spy (one source of truth; the active TOC entry and the URL hash always refer to the same heading). |
+| Update mechanism | **`history.replaceState` only.** Scrolling must never create history entries; back/forward navigates *files*, not scroll positions. Updates may be throttled/debounced to avoid churn during fast scrolling (final position must settle on the correct hash). |
+| Hash clearing | When the scroll position is above the first heading (document top), the hash is **removed** via `replaceState` (URL becomes `/{relative-path}`). Rule: *no hash = top of document*. |
+| Refresh / restore | On full page load or refresh of `/{relative-path}#heading-id`, the client renders the file, then scrolls the content scroll container to that heading and marks the matching TOC entry active. **A refresh with a hash must never land at the top.** |
+| Restore timing | Scroll-to-hash runs after `GET /api/file/<rel>` completes and the rendered fragment is in the DOM. If anchor positions can shift while async blocks (Mermaid, images) render, perform a single settle re-scroll once rendering stabilizes — no repeated visible jumps. |
+| TOC click interplay | Clicking a TOC entry smooth-scrolls and sets `location.hash` (existing behavior); tracking via `replaceState` keeps the hash accurate afterwards. No conflict. |
+| Scroll-to-top button | Floating button at the **bottom-right of the content pane**, overlaying content. Hidden when the content scroll container is near the top; appears after the user scrolls past a threshold of **~1 viewport height**. Theme-aware (light/dark) and keyboard-accessible (labeled button). |
+| Button behavior | Click **smooth-scrolls the content scroll container to the top and clears the URL hash** (`replaceState`), consistent with *no hash = top*. |
+| Scope | **Markdown documents only.** HTML iframe documents get **no** hash tracking and **no** scroll-to-top button (iframe internal scroll/headings are not the shell's concern; HTML is a quick viewer). |
+| Lifecycle | Tracking listeners/observers follow the same lifecycle as scroll-spy: attached with Markdown render, disconnected on file change / navigation. No leaked listeners; the scroll-to-top button is hidden in HTML/empty states. |
+| Scope (tech) | **Client-only**; no new API fields, no server changes, no config flags. |
+| Non-goals | Per-file scroll memory without a hash (no `localStorage` position store); pixel-exact (sub-heading) offset restoration; hash tracking or scroll-to-top for HTML iframes. |
 
 **Content width presets (authoritative)** — Markdown **and** HTML (identical handling):
 
@@ -147,6 +165,10 @@
 | Invalid stored width preset        | Fall back to Comfortable; do not break shell.                                |
 | Viewport narrower than preset cap  | Content host is `width: 100%` of pane up to the preset max-width (no overflow forced by the cap). |
 | HTML then Markdown (or reverse)    | Same preset remains active; width must not jump when kind changes.           |
+| Refresh with `#heading-id`         | File renders, then content scrolls to the heading; TOC entry active; never resets to top. |
+| Hash for renamed/removed heading   | Anchor missing: open at top without error; tracking clears/replaces the stale hash on next scroll. |
+| Rapid / continuous scrolling       | Hash updates throttled via `replaceState`; no history entries created; hash settles on final section. |
+| Scroll-to-top at document top      | Button hidden; clicking is a no-op zone (not reachable).                     |
 
 ## Design Decisions
 
@@ -243,6 +265,12 @@
 - [ ] When a Markdown file has headings, the TOC sidebar lists them; clicking an entry scrolls to that heading and updates the URL hash.
 - [ ] **TOC scroll-spy**: as the user scrolls Markdown content, the TOC entry for the current section is marked active (exactly one active entry; theme-aware styling); on open with `#id`, the matching entry is active after scroll-to-target.
 - [ ] Scroll-spy observers/listeners are cleaned up on file change / TOC hide (no leaks across navigations).
+- [ ] **Anchor hash tracking**: while scrolling Markdown content, the URL hash updates via `history.replaceState` to the current section heading id (same current-section rule as scroll-spy); scrolling creates **no** history entries.
+- [ ] Scrolling above the first heading clears the hash (URL becomes `/{relative-path}`).
+- [ ] **Refresh restore**: full page load/refresh of `/{relative-path}#heading-id` renders the file and restores the scroll position at that heading (never jumps to top); the matching TOC entry is active after restore.
+- [ ] **Scroll-to-top button**: appears in the content pane (bottom-right) after ~1 viewport of scrolling, hidden near the top; theme-aware and keyboard-accessible.
+- [ ] Clicking scroll-to-top smooth-scrolls the content to top and clears the URL hash.
+- [ ] Hash tracking and the scroll-to-top button apply to **Markdown only** — HTML iframe documents show neither.
 - [ ] Selecting an HTML file keeps navigation chrome visible and shows document content in an iframe; scripts and relative assets work for same-tree files.
 - [ ] Light and dark themes are available and persist for the session (persistence across reloads preferred if trivial).
 - [ ] **Content width presets**: topbar control exposes exactly three presets — Comfortable (`max-width: 880px`), Wide (`max-width: 1120px`), Full (no max-width cap / fill content pane).
@@ -314,7 +342,7 @@
 **Goal**: Beautiful Markdown + HTML iframe shell with navigation modes.
 
 - [ ] Markdown pipeline (highlight, tables, images, mermaid, footnotes, anchors, TOC).
-- [ ] UI: Search (fuzzy) | Browse toggle, theme, **content width presets** (Comfortable / Wide / Full; shared host for md+html; localStorage), content panel, TOC sidebar + scroll-spy active section, 2MB warning, error panels.
+- [ ] UI: Search (fuzzy) | Browse toggle, theme, **content width presets** (Comfortable / Wide / Full; shared host for md+html; localStorage), content panel, TOC sidebar + scroll-spy active section, **anchor hash tracking + refresh restore + scroll-to-top button** (Markdown only), 2MB warning, error panels.
 - [ ] HTML iframe integration and relative asset serving (iframe tracks the same content-host width as Markdown).
 - [ ] Optional watch + client reload when `-w` set.
 
@@ -351,6 +379,7 @@ This revision updates the v1.0 PRD based on implementation findings and product 
 | **TOC** | **Implemented (panel); scroll-spy planned** | Server computes `toc` entries; UI right-rail “On this page” panel lists headings and click-to-scroll. **Scroll-spy** (auto-mark active TOC entry from content scroll position) is specified under **TOC panel & scroll-spy** and is the next TOC enhancement. |
 | **File URI shape** | **Path-style everywhere (locked)** | Browser URL for the open document is `/{relative-path}` (e.g. `http://localhost:8787/.context/plans/…/PLAN.md`), **not** `/?file=…`. JSON API is `GET /api/file/<relative-path>`; raw is `GET /content/<relative-path>`. No query-string file identity. Full refresh of a path serves the reader shell (SPA fallback), not raw bytes. Reserved prefixes: `/api`, `/content`, `/ui`, `/health`, `/ready`. |
 | **Content width presets** | **3-step client tool; shared for md + html (locked)** | Topbar control cycles/selects **Comfortable** (880px, default) · **Wide** (1120px) · **Full** (fill content pane). Applied on the single content host so Markdown and HTML iframe use the **exact same** max-width handling. Persist via `localStorage`. No per-file settings, no free-form slider, no server API. |
+| **Anchor tracking & scroll-to-top** | **Hash follows reading position; refresh restores section; scroll-to-top button — Markdown only (locked)** | While scrolling Markdown, the URL hash updates via `history.replaceState` to the current section (same computation as TOC scroll-spy); hash cleared at document top. Refresh of `/{path}#id` restores the reading position after render — never jumps to top. Floating scroll-to-top button (bottom-right, ~1 viewport threshold) smooth-scrolls to top and clears the hash. Markdown only; client-only; no history spam; no per-file scroll memory. |
 
 ### Beyond PRD Features (Implemented)
 
@@ -373,6 +402,7 @@ The following features were implemented during v1 development but were not speci
 | 6 (v1.1) | **TOC scroll-spy specified**: TOC panel status updated (panel implemented; scroll-spy planned). Active section = exactly one TOC entry from content scroll position; client-only; hash on open; observer cleanup; no new API. |
 | 7 (v1.1) | **Content width presets**: 3-step topbar tool (Comfortable 880px · Wide 1120px · Full); **identical** max-width handling for Markdown and HTML via shared content host; default Comfortable; persist `localStorage`; client-only. |
 | 8 (v1.1) | **Port fallback**: probe preferred port with short-lived TCP bind before HTTP serve; if busy, bind port `0` (OS assigns free port); log actual port; `--open` uses actual port; no sequential scan. |
+| 9 (v1.1) | **Anchor tracking & scroll-to-top**: URL hash tracks current reading section via `history.replaceState` (no history entries); hash cleared at document top; refresh of `/{path}#id` restores position after render (never top); scroll-to-top floating button clears hash; **Markdown only** (HTML iframe excluded from both tracking and button). |
 
 ---
 
@@ -388,11 +418,12 @@ The following features were implemented during v1 development but were not speci
 | 6     | **TOC scroll-spy**: auto-mark active TOC section while scrolling Markdown content; acceptance criteria + observer lifecycle; TOC panel marked implemented, scroll-spy next.                                                                                                                                                                                                                                        |
 | 7     | **Content width presets**: Comfortable / Wide / Full; shared for Markdown + HTML; topbar + localStorage; default Comfortable (880px); no per-file or free-form width.                                                                                                                                                                                                                                               |
 | 8     | **Port fallback**: preferred port free → use it; busy → port `0` (OS-assigned); probe via TCP listen/close before `Deno.serve`; log preferred vs actual; `--open` uses actual port.                                                                                                                                                                                                                                 |
+| 9     | **Anchor tracking & scroll-to-top**: hash follows reading section (`replaceState`, cleared at top); refresh restores section from `#id`; scroll-to-top button (Markdown only); client-only, no new API.                                                                                                                                                                                                        |
 
 ---
 
 **Document Version**: 1.1  
 **Created**: 2026-07-19  
-**Revised**: 2026-07-21  
-**Clarification Rounds**: 8  
-**Quality Score**: 96/100
+**Revised**: 2026-07-28  
+**Clarification Rounds**: 9  
+**Quality Score**: 97/100
