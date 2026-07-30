@@ -585,7 +585,7 @@ async function createMermaidDiagram(code) {
   }
 
   // Store pan/zoom state on the container
-  attachPanZoom(viewport);
+  attachPanZoom(container, viewport);
 
   // Add fullscreen button
   const fsBtn = document.createElement("button");
@@ -616,22 +616,25 @@ async function createMermaidDiagram(code) {
 }
 
 /** Attach pan/zoom mouse interactions to a mermaid viewport. */
-function attachPanZoom(viewport) {
+function attachPanZoom(container, viewport) {
   const state = { scale: 1, x: 0, y: 0 };
   viewport._panZoomState = state;
   let dragging = false;
   let start = { x: 0, y: 0 };
 
-  viewport.addEventListener("wheel", (e) => {
+  // Listen on the container (never transformed) so the whole diagram box
+  // triggers zoom — the viewport's hit area shrinks/moves with its transform.
+  container.addEventListener("wheel", (e) => {
     e.preventDefault();
-    const rect = viewport.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+    // Zoom anchored at viewport center so the diagram stays locked in place.
+    // Use clientWidth/clientHeight (layout size) — getBoundingClientRect()
+    // would return the already-transformed rect and drift the anchor.
+    const centerX = viewport.clientWidth / 2;
+    const centerY = viewport.clientHeight / 2;
     const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
     const newScale = Math.max(0.1, Math.min(5, state.scale * zoomFactor));
-    // Zoom towards mouse pointer
-    state.x = mouseX - (mouseX - state.x) * (newScale / state.scale);
-    state.y = mouseY - (mouseY - state.y) * (newScale / state.scale);
+    state.x = centerX - (centerX - state.x) * (newScale / state.scale);
+    state.y = centerY - (centerY - state.y) * (newScale / state.scale);
     state.scale = newScale;
     applyPanZoomTransform(viewport);
   }, { passive: false });
