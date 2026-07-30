@@ -18,11 +18,31 @@ runtime via the import map in `deno.json`.
 
 ## Install
 
+### From JSR (recommended)
+
 ```bash
 deno install -g -n serve-md --allow-read --allow-net --allow-env --allow-run jsr:@ball6847/serve-md
 ```
 
-Once installed, `serve-md` is on your `PATH` and can be run from any directory:
+This installs `serve-md` from JSR. Each run fetches the latest version, so
+reinstall to pick up updates:
+
+```bash
+deno install -g -n serve-md --allow-read --allow-net --allow-env --allow-run --force jsr:@ball6847/serve-md
+```
+
+### From local source (bundled assets)
+
+```bash
+deno install -g -n serve-md-local --compile --allow-read --allow-net --allow-env --allow-run ./src/cli/main.ts
+```
+
+The `--compile` flag bundles the UI assets (`src/ui/`) into the binary, so no
+remote fetch is needed at runtime. The binary is self-contained and always
+serves the assets that shipped with that version.
+
+Once installed, `serve-md` (or `serve-md-local`) is on your `PATH` and can be
+run from any directory:
 
 ```bash
 serve-md
@@ -48,13 +68,13 @@ directory. It will open `README.md` (or `readme.md`, or extensionless
 deno task serve --help
 ```
 
-| Flag            | Description                                                                                          | Default             |
-| --------------- | ---------------------------------------------------------------------------------------------------- | ------------------- |
-| `--port <n>`    | Preferred port to listen on. If busy, falls back to an OS-assigned free port (see Port fallback)   | `8787` (env `PORT`) |
-| `--network`     | Bind on all interfaces (`0.0.0.0`) — required for Tailscale                                          | `127.0.0.1`         |
-| `-w`, `--watch` | Watch content root for changes and notify the UI via SSE                                             | off                 |
-| `--root <path>` | Content root directory                                                                               | cwd                 |
-| `--open`        | Open browser automatically on startup (uses the actual bound port)                                   | off                 |
+| Flag            | Description                                                                                      | Default             |
+| --------------- | ------------------------------------------------------------------------------------------------ | ------------------- |
+| `--port <n>`    | Preferred port to listen on. If busy, falls back to an OS-assigned free port (see Port fallback) | `8787` (env `PORT`) |
+| `--network`     | Bind on all interfaces (`0.0.0.0`) — required for Tailscale                                      | `127.0.0.1`         |
+| `-w`, `--watch` | Watch content root for changes and notify the UI via SSE                                         | off                 |
+| `--root <path>` | Content root directory                                                                           | cwd                 |
+| `--open`        | Open browser automatically on startup (uses the actual bound port)                               | off                 |
 
 ### Port fallback
 

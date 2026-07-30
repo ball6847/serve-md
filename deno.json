@@ -8,7 +8,8 @@
     "test": "deno test -A src/",
     "check": "deno fmt --check src/ && deno lint src/ && deno test -A src/",
     "serve": "deno run --allow-read --allow-net --allow-env --allow-run src/cli/main.ts serve",
-    "install:local": "deno install --global --allow-read --allow-net --allow-env --allow-run -n serve-md-local --config deno.json --force ./src/cli/main.ts",
+    "install:local": "deno install --global --compile --allow-read --allow-net --allow-env --allow-run -n serve-md-local --config deno.json --force ./src/cli/main.ts",
+    "install:jsr": "deno install --global --allow-read --allow-net --allow-env --allow-run -n serve-md --force jsr:@ball6847/serve-md",
     "release:check": "npx jsr publish --dry-run --allow-dirty"
   },
   "imports": {
@@ -49,5 +50,10 @@
   },
   "exports": {
     ".": "./src/cli/main.ts"
+  },
+  "compile": {
+    "include": [
+      "./src/ui/"
+    ]
   }
 }
