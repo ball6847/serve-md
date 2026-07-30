@@ -64,9 +64,15 @@ export class WatchCoordinator {
   }
 
   start(contentRoot: string): Promise<void> {
-    this.#contentRoot = contentRoot;
+    // Resolve to real path so FS event paths (which use /private/… on macOS)
+    // compare equal to the content root.
+    const [realErr, realRoot] = trySync(() => Deno.realPathSync(contentRoot));
+    if (realErr) {
+      this.#logger.warn({ err: String(realErr), contentRoot }, "watch realPath failed");
+      return Promise.resolve();
+    }
+    this.#contentRoot = realRoot;
     (async () => {
-      // Deno.watchFs() is synchronous — use trySync for consistent error handling.
       const [watchErr, watcher] = trySync(() => Deno.watchFs(contentRoot, { recursive: true }));
       if (watchErr) {
         this.#logger.warn({ err: String(watchErr) }, "watch fs init failed");

@@ -94,8 +94,10 @@ Deno.test("WatchCoordinator: excluded path changes do not refresh or notify", as
       notified++;
     });
     await watcher.start(root);
-    // Let the watcher attach before writing
+    // Let the watcher attach and any initial root event settle
     await new Promise((r) => setTimeout(r, 50));
+    // Reset — initial attach may trigger one refresh from the root dir event
+    notified = 0;
 
     await Deno.mkdir(join(root, ".git"), { recursive: true });
     await Deno.writeTextFile(join(root, ".git", "HEAD"), "ref: refs/heads/main");
