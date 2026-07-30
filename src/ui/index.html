@@ -5,22 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ brand }} — serve-md</title>
     <script>
-      // Apply saved theme immediately to prevent flash of wrong theme
-      (function () {
-        var saved = localStorage.getItem("serve-md-theme");
-        var theme = saved === "dark" ? "dark" : "light";
-        document.documentElement.setAttribute("data-theme", theme);
-      })();
+    // Apply saved theme immediately to prevent flash of wrong theme
+    (function () {
+      var saved = localStorage.getItem("serve-md-theme");
+      var theme = saved === "dark" ? "dark" : "light";
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
 
-      // Apply saved content width immediately to prevent layout flash
-      (function () {
-        var saved = localStorage.getItem("serve-md-content-width");
-        var width =
-          saved === "comfortable" || saved === "wide" || saved === "full"
-            ? saved
-            : "comfortable";
-        document.documentElement.setAttribute("data-content-width", width);
-      })();
+    // Apply saved content width immediately to prevent layout flash
+    (function () {
+      var saved = localStorage.getItem("serve-md-content-width");
+      var width = saved === "comfortable" || saved === "wide" || saved === "full"
+        ? saved
+        : "comfortable";
+      document.documentElement.setAttribute("data-content-width", width);
+    })();
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -30,53 +29,49 @@
     />
     <link rel="stylesheet" href="/ui/styles.css" />
     <script>
-      // Set correct hljs theme before paint
-      (function () {
-        var saved = localStorage.getItem("serve-md-theme");
-        var theme = saved === "dark" ? "dark" : "light";
-        var link = document.createElement("link");
-        link.rel = "stylesheet";
-        link.id = "hljs-theme";
-        link.href =
-          theme === "dark" ? "/ui/hljs-dark.css" : "/ui/hljs-light.css";
-        document.head.appendChild(link);
-      })();
+    // Set correct hljs theme before paint
+    (function () {
+      var saved = localStorage.getItem("serve-md-theme");
+      var theme = saved === "dark" ? "dark" : "light";
+      var link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.id = "hljs-theme";
+      link.href = theme === "dark" ? "/ui/hljs-dark.css" : "/ui/hljs-light.css";
+      document.head.appendChild(link);
+    })();
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-      tailwind.config = {
-        darkMode: ["selector"],
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ["Inter", "system-ui", "sans-serif"],
-              mono: ["JetBrains Mono", "monospace"],
-            },
-            colors: {
-              border: "var(--border)",
-              bg: "var(--bg)",
-              fg: "var(--fg)",
-              muted: "var(--muted)",
-              "code-bg": "var(--code-bg)",
-              accent: "var(--accent)",
-              hover: "var(--hover)",
-              selected: "var(--selected)",
-              "topbar-bg": "var(--topbar-bg)",
-            },
+    tailwind.config = {
+      darkMode: ["selector"],
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ["Inter", "system-ui", "sans-serif"],
+            mono: ["JetBrains Mono", "monospace"],
+          },
+          colors: {
+            border: "var(--border)",
+            bg: "var(--bg)",
+            fg: "var(--fg)",
+            muted: "var(--muted)",
+            "code-bg": "var(--code-bg)",
+            accent: "var(--accent)",
+            hover: "var(--hover)",
+            selected: "var(--selected)",
+            "topbar-bg": "var(--topbar-bg)",
           },
         },
-      };
+      },
+    };
     </script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
     <script>
-      // Initialize mermaid with current theme
-      mermaid.initialize({
-        startOnLoad: false,
-        theme:
-          document.documentElement.getAttribute("data-theme") === "dark"
-            ? "dark"
-            : "default",
-      });
+    // Initialize mermaid with current theme
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "default",
+    });
     </script>
   </head>
   <body
