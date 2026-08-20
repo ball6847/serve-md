@@ -728,6 +728,7 @@ section.content {
     top: 48px;
     left: 0;
     height: calc(100vh - 48px);
+    height: calc(100dvh - 48px);
     z-index: 50;
     transform: translateX(-100%);
     transition: transform 0.2s ease;
@@ -744,4 +745,21 @@ section.content {
   .content-width-btn:not(.is-active) {
     display: none;
   }
+}
+
+/* Chrome for Android has a dynamic viewport: the address bar makes the layout
+   viewport (100vh) taller than the visual viewport. After a refresh the
+   address bar is shown, so a 100vh body pushes the pinned header above the
+   visible area and it appears to disappear. Track the visual viewport with
+   dynamic viewport height (dvh); fall back to vh where unsupported. */
+body.h-screen {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Keep the header above the drawer (z-index 50) and scrim (z-index 40) in
+   case Android's fixed-positioning misplaces them near the top. */
+header.topbar {
+  position: relative;
+  z-index: 60;
 }
