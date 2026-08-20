@@ -303,9 +303,19 @@ function applyContentWidth(preset) {
   });
 }
 
+// On narrow screens the 3-way width control collapses to a single button;
+// clicking the visible (active) button cycles to the next preset.
+const WIDTH_ORDER = ["comfortable", "wide", "full"];
+const widthCollapsedQuery = window.matchMedia("(max-width: 640px)");
+
 contentWidthButtons.forEach((btn) => {
   btn.addEventListener("click", () => {
-    applyContentWidth(btn.dataset.width);
+    if (widthCollapsedQuery.matches) {
+      const i = WIDTH_ORDER.indexOf(state.contentWidth);
+      applyContentWidth(WIDTH_ORDER[(i + 1) % WIDTH_ORDER.length]);
+    } else {
+      applyContentWidth(btn.dataset.width);
+    }
   });
 });
 
@@ -694,6 +704,8 @@ async function openFile(path, updateUrl = true) {
   state.selectedPath = path;
   // Re-render tree to update selection highlight
   renderTree();
+  // Auto-close the mobile drawer once a file is opened.
+  if (isMobile()) closeDrawer();
   contentHost.innerHTML = "";
   hideToc();
 
@@ -815,6 +827,60 @@ async function openFile(path, updateUrl = true) {
     });
   }
 }
+
+// ---------- Mobile sidebar drawer ----------
+const menuToggle = document.getElementById("menu-toggle");
+const drawerScrim = document.getElementById("drawer-scrim");
+const sidebarEl = document.querySelector("aside.sidebar");
+const mobileQuery = window.matchMedia("(max-width: 768px)");
+
+function isMobile() {
+  return mobileQuery.matches;
+}
+
+function openDrawer() {
+  if (!isMobile()) return;
+  sidebarEl.classList.add("open");
+  drawerScrim?.classList.add("open");
+  sidebarEl.inert = false;
+  if (menuToggle) menuToggle.setAttribute("aria-expanded", "true");
+}
+
+function closeDrawer() {
+  sidebarEl.classList.remove("open");
+  drawerScrim?.classList.remove("open");
+  if (isMobile()) sidebarEl.inert = true;
+  if (menuToggle) menuToggle.setAttribute("aria-expanded", "false");
+}
+
+// Keep the drawer in a sane state across breakpoint changes: desktop is never
+// a drawer; mobile starts closed. Prevents a stuck-open overlay on resize.
+function syncDrawer() {
+  if (isMobile()) {
+    sidebarEl.inert = !sidebarEl.classList.contains("open");
+  } else {
+    sidebarEl.inert = false;
+    sidebarEl.classList.remove("open");
+    drawerScrim?.classList.remove("open");
+    if (menuToggle) menuToggle.setAttribute("aria-expanded", "false");
+  }
+}
+
+if (menuToggle) {
+  menuToggle.addEventListener("click", () => {
+    if (sidebarEl.classList.contains("open")) {
+      closeDrawer();
+    } else {
+      openDrawer();
+    }
+  });
+}
+drawerScrim?.addEventListener("click", closeDrawer);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeDrawer();
+});
+mobileQuery.addEventListener("change", syncDrawer);
+syncDrawer();
 
 // ---------- Boot ----------
 async function boot() {
