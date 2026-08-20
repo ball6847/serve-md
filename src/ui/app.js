@@ -306,7 +306,7 @@ function applyContentWidth(preset) {
 // On narrow screens the 3-way width control collapses to a single button;
 // clicking the visible (active) button cycles to the next preset.
 const WIDTH_ORDER = ["comfortable", "wide", "full"];
-const widthCollapsedQuery = window.matchMedia("(max-width: 640px)");
+const widthCollapsedQuery = globalThis.matchMedia("(max-width: 640px)");
 
 contentWidthButtons.forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -832,7 +832,7 @@ async function openFile(path, updateUrl = true) {
 const menuToggle = document.getElementById("menu-toggle");
 const drawerScrim = document.getElementById("drawer-scrim");
 const sidebarEl = document.querySelector("aside.sidebar");
-const mobileQuery = window.matchMedia("(max-width: 768px)");
+const mobileQuery = globalThis.matchMedia("(max-width: 768px)");
 
 function isMobile() {
   return mobileQuery.matches;
